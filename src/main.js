@@ -41,7 +41,12 @@ async function play(m) {
   const my = ++run, alive = () => my === run;
   doneAt = null;
   try {
-    if (CFG.once) { await vis[m].start(data(m)); if (alive()) doneAt = now(); return; }
+    if (CFG.once) {
+      const runs = m === "howe" ? P.howe.runs : 1;           // Howe is short: its page plays several scatters in a row
+      for (let i = 0; i < runs && alive(); i++) await vis[m].start(data(m));
+      if (alive()) doneAt = now();
+      return;
+    }
     if (m !== "all") { while (alive()) await vis[m].start(data(m)); return; }
     const order = () => [...(P.all.intro ? ["intro"] : []), "chain", "lines", "colocation", ...Array(P.all.howeRepeats).fill("howe")];
     let seq = order(), i = 0, word = null;

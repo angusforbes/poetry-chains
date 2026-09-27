@@ -46,6 +46,7 @@ export const SCHEMA = {
     hold:          { v: 3000, min: 0, max: 20000, step: 250, label: "hold at end (ms)" },
   },
   howe: {
+    runs:         { v: 5,    min: 1, max: 20, step: 1, label: "runs per page (Howe page)" },
     minLines:     { v: 8,    min: 1, max: 40, step: 1, label: "min lines" },
     maxLines:     { v: 18,   min: 1, max: 60, step: 1, label: "max lines" },
     newGroup:     { v: 0.2,  min: 0, max: 1, step: 0.01, label: "chance of a new group" },
