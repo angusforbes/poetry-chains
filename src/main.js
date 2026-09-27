@@ -42,6 +42,7 @@ const lastWord = (m, d) => {
 //   controls pages: exactly PRELOAD, measured up front, so the timeline has a fixed end
 //   plain pages: one (Howe: P.howe.runs), or forever for the whole piece
 const PRELOAD = 5;
+const PANEL_W = 320;                                     // the settings column on the right, when open
 let run = 0, doneAt = null, marks = [];
 async function play(m) {
   const my = ++run, alive = () => my === run;
@@ -237,9 +238,14 @@ async function boot() {
     groups: CFG.mode && CFG.mode !== "all" ? ["look", CFG.mode] : null,
     extra: [[SHARE, shareSequence], [LINK, linkHere]],
     onMode: (m) => { location.hash = m; }, onRestart: fresh, onPause: togglePause,
+    onPanel: (open) => { document.body.classList.toggle("panel-open", open); stage.layout(open ? PANEL_W : 0); },
   });
+  document.documentElement.style.setProperty("--panel-w", PANEL_W + "px");
+  stage.onLayout = () => { T.dirty = true; };
   onChange((g, k) => {
+    const liveCamera = (g === "look" && ["fov", "fitMargin"].includes(k)) || (g === "colocation" && k === "fitScale") || (g === "howe" && k === "zoom");
     if (g === "look" && ["textColor", "background", "fov"].includes(k)) { stage.applyLook(); T.dirty = true; }
+    else if (liveCamera) T.dirty = true;
     else remeasure();
   });
   if (!CFG.mode) addEventListener("hashchange", fresh);

@@ -174,3 +174,13 @@ body.seeking #seekmsg { display: inline; }
 }
 #transport input[type="range"]::-moz-range-thumb { width: 9px; height: 9px; border-radius: 50%; background: var(--ink); border: 0; }
 #transport input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.3); }
+
+/* ── open: a full-height column on the right, the piece refitted beside it ── */
+body.panel-open .lil-gui.lil-root {
+  top: 0 !important; right: 0 !important; bottom: 0; width: var(--panel-w) !important;
+  max-height: none !important; height: 100vh; overflow-y: auto; opacity: 1;
+  background: rgb(253, 252, 249); backdrop-filter: none; box-shadow: none;
+  border-left: 1px solid var(--rule); padding: 14px 16px 24px 20px; box-sizing: border-box;
+}
+body.panel-open .lil-gui.lil-root .lil-children { max-height: none; overflow: visible; }
+body.panel-open #transport { right: var(--panel-w); }

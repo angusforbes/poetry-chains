@@ -20,8 +20,8 @@ let seq = 0;
 export const now = () => clock;
 
 /** tween({ duration, delay, init: () => (t) => {...}, target, channel, silent }) → Promise (none if silent) */
-export function tween({ duration = 250, delay = 0, init = null, target = null, channel = null, ease = cubicInOut, silent = false }) {
-  const tw = { id: seq++, start: clock + Math.max(0, delay), duration: Math.max(0, duration), init, target, channel, ease, started: false, resolve: null };
+export function tween({ duration = 250, delay = 0, init = null, target = null, channel = null, ease = cubicInOut, silent = false, meta = null }) {
+  const tw = { id: seq++, start: clock + Math.max(0, delay), duration: Math.max(0, duration), init, target, channel, ease, started: false, resolve: null, meta };
   active.add(tw);
   if (silent) return undefined;
   return new Promise((resolve) => { tw.resolve = resolve; });

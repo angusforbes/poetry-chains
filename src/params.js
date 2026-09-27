@@ -98,7 +98,7 @@ function writeUrl() {
 const listeners = [];
 export const onChange = (fn) => listeners.push(fn);
 
-export function buildGui({ modes, current, onMode, onRestart, onPause, groups = null, extra = null }) {
+export function buildGui({ modes, current, onMode, onRestart, onPause, groups = null, extra = null, onPanel = null }) {
   const gui = new GUI({ title: "settings" });
   const ctl = { mode: current, restart: onRestart, pause: () => onPause(), reset: () => { history.replaceState(null, "", location.pathname + location.hash); location.reload(); } };
   if (modes.length > 1) gui.add(ctl, "mode", modes).name("mode").onChange(onMode);
@@ -121,5 +121,7 @@ export function buildGui({ modes, current, onMode, onRestart, onPause, groups = 
     if (e.key === "r") onRestart();
   });
   gui.close();
+  // open, the panel takes the right side of the window and the piece is refitted into what is left
+  gui.onOpenClose((g) => { if (g === gui && onPanel) onPanel(!gui._closed); });
   return gui;
 }

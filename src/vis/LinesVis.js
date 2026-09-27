@@ -42,7 +42,7 @@ export class LinesVis extends Vis {
     const visible = parent.children.filter((line) => line.children.every((c) => c.material.opacity > 0 || !c.isMesh));
     if (!visible.length) return;
     const box = this.getBBoxFromSubset(parent, visible);
-    return this.adjustCameraToFitBox(box, 1.3);
+    return this.adjustCameraToFitBox(box);   // 1.3 in 2015: the framing default
   }
 
   async chainedFadeIn(array) {

@@ -15,19 +15,16 @@ export class Stage {
   async init(fontUrl) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(window.devicePixelRatio);
-    this.renderer.setSize(innerWidth, innerHeight);
+    this.inset = 0;                                   // width taken by the settings panel on the right
+    this.renderer.setSize(this.viewW(), innerHeight);
     document.body.appendChild(this.renderer.domElement);
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(P.look.fov, innerWidth / innerHeight, 0.1, 1000);
+    this.camera = new THREE.PerspectiveCamera(P.look.fov, this.viewW() / innerHeight, 0.1, 1000);
     this.camera.position.set(0, 0, CAMERA_Z);
     this.camera.lookAt(0, 0, 0);
     this.textColor = new THREE.Color(P.look.textColor);     // one Color shared by every letter: live recolouring
     this.applyLook();
-    addEventListener("resize", () => {
-      this.camera.aspect = innerWidth / innerHeight;
-      this.camera.updateProjectionMatrix();
-      this.renderer.setSize(innerWidth, innerHeight);
-    });
+    addEventListener("resize", () => this.layout());
     const buf = await (await fetch(fontUrl)).arrayBuffer();
     const _ot = await import("opentype.js");
     this.font = (_ot.default || _ot).parse(buf.slice(0));
@@ -36,14 +33,16 @@ export class Stage {
     this.slug = await gen.generateFromBuffer(buf.slice(0));
     this.glyphs = new Map();
     this.hold = false;                                // true while seeking: nothing half-built gets drawn
-    this.renderer.setAnimationLoop(() => { if (!this.hold) this.renderer.render(this.scene, this.camera); });
+    // what is drawn (view*) can differ from what is being built (scene/camera): a new recording is made
+    // in a fresh scene while the previous one keeps playing
+    this.renderer.setAnimationLoop(() => { if (!this.hold) this.renderer.render(this.viewScene || this.scene, this.viewCamera || this.camera); });
   }
 
   applyLook() {
     this.renderer.setClearColor(P.look.background);
     this.textColor.set(P.look.textColor);
     document.body.style.background = P.look.background;
-    if (this.camera.fov !== P.look.fov) { this.camera.fov = P.look.fov; this.camera.updateProjectionMatrix(); }
+    for (const c of new Set([this.camera, this.viewCamera].filter(Boolean))) if (c.fov !== P.look.fov) { c.fov = P.look.fov; c.updateProjectionMatrix(); }
   }
 
   get em() { return P.look.fontSize / this.font.unitsPerEm; }
@@ -111,6 +110,24 @@ export class Stage {
     return o;
   }
 
+  viewW() { return Math.max(200, innerWidth - this.inset); }
+  /** fit canvas and cameras to the space left beside the settings panel */
+  layout(inset = this.inset) {
+    this.inset = inset;
+    for (const c of new Set([this.camera, this.viewCamera].filter(Boolean))) { c.aspect = this.viewW() / innerHeight; c.updateProjectionMatrix(); }
+    this.renderer.setSize(this.viewW(), innerHeight);
+    if (this.onLayout) this.onLayout();
+  }
+
+  /** a fresh scene and camera to build into (the view keeps showing the old ones until swapped) */
+  fresh() {
+    this.scene = new THREE.Scene();
+    this.camera = new THREE.PerspectiveCamera(P.look.fov, this.viewW() / innerHeight, 0.1, 1000);
+    this.camera.position.set(0, 0, CAMERA_Z);
+    this.camera.lookAt(0, 0, 0);
+  }
+  showBuilt() { this.viewScene = this.scene; this.viewCamera = this.camera; }
+
   clear() {
     for (const c of [...this.scene.children]) this.scene.remove(c);
   }
@@ -140,12 +157,16 @@ export class Vis {
   getSiblingsFromSubset(parent, array) { return parent.children.filter((c) => !array.includes(c)); }
 
   /* ── camera ── */
+  // A camera move stores what it frames, not where it ends: its target is recomputed from the current
+  // settings (framing, lens, window shape) every time the camera is placed, so those settings are live.
   panCameraToPosition3(target, duration, ignoreGlobal) {
     const zOff = ignoreGlobal ? 0 : CAMERA_Z;
     const cam = this.camera;
+    const goal = typeof target === "function" ? target : () => target;
+    const to = () => { const v = goal(); return new THREE.Vector3(v.x, v.y, v.z + zOff); };
     return tween({
-      duration: (duration || 1000) * this.speed, target: cam, channel: "camera",
-      init: () => { const a = cam.position.clone(), b = new THREE.Vector3(target.x, target.y, target.z + zOff); return (t) => cam.position.lerpVectors(a, b, t); },
+      duration: (duration || 1000) * this.speed, target: cam, channel: "camera", meta: { to },
+      init: () => { const a = cam.position.clone(); return (t) => cam.position.lerpVectors(a, to(), t); },
     });
   }
   hFov() { const v = THREE.MathUtils.degToRad(this.camera.fov); return Math.atan(Math.tan(v / 2) * this.camera.aspect); }
@@ -154,13 +175,15 @@ export class Vis {
     const w = Math.abs(box.min.x - box.max.x), h = Math.abs(box.min.y - box.max.y);
     return -((w > h ? w : h) / 2) / Math.tan(this.hFov()) * scale;
   }
-  fitTo(box, dist, duration) {
+  /** scale may be a number or a function (a live setting); by default the framing setting */
+  scaleOf(scale) { return typeof scale === "function" ? scale() : scale || P.look.fitMargin; }
+  fitTo(box, distFn, duration, dx = 0) {
     const c = box.getCenter(new THREE.Vector3());
-    return this.panCameraToPosition3(new THREE.Vector3(c.x, c.y, c.z + dist), duration || 1000, true);
+    return this.panCameraToPosition3(() => new THREE.Vector3(c.x + dx, c.y, c.z + distFn()), duration || 1000, true);
   }
-  adjustCameraToFit(obj, scale, duration) { const b = this.getBBox(obj); return this.fitTo(b, this.getZoomDistanceFromBox(b, scale || P.look.fitMargin), duration); }
-  adjustCameraToFitWidth(obj, scale, duration) { const b = this.getBBox(obj); return this.fitTo(b, this.getZoomDistanceFromBoxWidth(b, scale || P.look.fitMargin), duration); }
-  adjustCameraToFitBox(box, scale, duration) { return this.fitTo(box, this.getZoomDistanceFromBox(box, scale || P.look.fitMargin), duration); }
+  adjustCameraToFit(obj, scale, duration) { const b = this.getBBox(obj); return this.fitTo(b, () => this.getZoomDistanceFromBox(b, this.scaleOf(scale)), duration); }
+  adjustCameraToFitWidth(obj, scale, duration) { const b = this.getBBox(obj); return this.fitTo(b, () => this.getZoomDistanceFromBoxWidth(b, this.scaleOf(scale)), duration); }
+  adjustCameraToFitBox(box, scale, duration) { return this.fitTo(box, () => this.getZoomDistanceFromBox(box, this.scaleOf(scale)), duration); }
 
   /* ── fades: every letter staggered; resolves when the first letter finishes, as d3's each("end") did ── */
   fadeToArray(to, duration) {

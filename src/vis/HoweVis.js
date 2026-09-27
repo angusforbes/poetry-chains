@@ -27,8 +27,7 @@ export class HoweVis extends Vis {
       parent.add(o);
       this.fadeToArray(1, 1000)(o.children);
       const box = this.getBBox(parent);
-      const c = box.getCenter(new THREE.Vector3());
-      await this.panCameraToPosition3(new THREE.Vector3(c.x, c.y, c.z + this.getZoomDistanceFromBox(box, H.zoom)), 1000, true);
+      await this.fitTo(box, () => this.getZoomDistanceFromBox(box, P.howe.zoom), 1000);
     }
     await this.wait(H.hold);
     await this.fadeAll(parent.children, 0, 1000);

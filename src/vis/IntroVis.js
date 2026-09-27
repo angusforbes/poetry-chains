@@ -21,8 +21,8 @@ export class IntroVis extends Vis {
     parent.scale.multiplyScalar(this.scaleText);
     this.scene.add(parent);
     const faded = this.fadeAll(parent.children, 1, 2500);
-    const box = this.getBBox(parent), c = box.getCenter(new THREE.Vector3());
-    const panned = this.panCameraToPosition3(new THREE.Vector3(c.x - 0.2, c.y, c.z + this.getZoomDistanceFromBox(box, 1.2)), 1, true);
+    const box = this.getBBox(parent);
+    const panned = this.fitTo(box, () => this.getZoomDistanceFromBox(box, 1.2), 1, -0.2);
     await Promise.all([faded, panned]);
     await this.wait(P.all.introHold);
     await this.fadeAll(parent.children, 0, 1000);

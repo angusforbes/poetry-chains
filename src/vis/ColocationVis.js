@@ -25,7 +25,7 @@ export class ColocationVis extends Vis {
     const traverse = async (node) => {
       const next = (node.children || []).filter((c) => c.children)[0];
       if (node.children) this.addChildren(node);
-      await this.adjustCameraToFitWidth(node._text_object.parent, P.colocation.fitScale);
+      await this.adjustCameraToFitWidth(node._text_object.parent, () => P.colocation.fitScale);
       await this.wait(1000);
       if (next) {
         await this.moveChildren(node, 1000);
