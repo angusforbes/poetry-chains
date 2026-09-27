@@ -10,7 +10,11 @@ const $ = (s) => document.querySelector(s);
 const tx = await TextFX.create($("#stage"), { fontUrl: `${BASE}fonts/OpenBaskerville.ttf` });
 
 const LAYERS = ["word", "line", "stanza", "combined"];
-const S = { poem: null, layer: "combined", wpm: 70, playing: true, threshold: 0.18, cur: 0, sel: null, T: 0, words: [], built: -1 };
+// rhyme families: one ink each (letters only); a slant rhyme gets a paler, flickering version
+const RHYME_INK = [[0.72, 0.24, 0.16], [0.16, 0.42, 0.66], [0.52, 0.30, 0.64], [0.20, 0.54, 0.34], [0.78, 0.52, 0.08],
+                   [0.66, 0.20, 0.44], [0.28, 0.44, 0.66], [0.46, 0.40, 0.14], [0.10, 0.50, 0.52], [0.60, 0.34, 0.20]];
+const css = (c, a = 1) => `rgba(${c.map((x) => Math.round(x * 255)).join(",")},${a})`;
+const S = { top: 3, rhymes: true, poem: null, layer: "combined", wpm: 70, playing: true, threshold: 0.18, cur: 0, sel: null, T: 0, words: [], built: -1 };
 const params = new URLSearchParams(location.search);
 
 // ── scores for a word at a layer → effect weights ──
@@ -19,6 +23,25 @@ function polesOf(w, layer) {
   return { poles: w.layers[layer].poles, gate: w.layers[layer].gate };
 }
 function resolved(w, layer = S.layer) { const p = polesOf(w, layer); return resolve(p.poles, p.gate); }
+
+// ── rhymes (from tools/rhymes.py): per word {family, letters [from, to]}, and how strong its best pair is ──
+function rhymeOf(i) { return S.poem.rhymes?.word?.[i]; }
+function rhymeStrength(i) {
+  let best = 0;
+  for (const p of S.poem.rhymes?.pairs || []) if (p.a === i || p.b === i) best = Math.max(best, p.strength);
+  return best;
+}
+/** the tint for word i at time T: once read it keeps its family colour; when a later member of its family is
+ *  read, every member flashes (a sonic callback). Slant rhymes are paler and flicker. */
+function rhymeTint(i, T) {
+  const r = S.rhymes && rhymeOf(i);
+  if (!r || T < S.times[i]) return null;
+  const fam = S.poem.rhymes.families[r.family], strong = rhymeStrength(i) >= 0.8;
+  let flash = 0;
+  for (const j of fam) { const dt = T - S.times[j]; if (dt >= 0 && dt < 1.8) flash = Math.max(flash, 1 - dt / 1.8); }
+  const base = strong ? 0.7 : 0.45 + 0.15 * Math.sin(T * 5 + i);
+  return { from: r.letters[0], to: r.letters[1], color: RHYME_INK[r.family % RHYME_INK.length], amount: Math.min(1, base + 0.5 * flash) };
+}
 
 // ── timing: each word gets a beat, longer words a little more; its performance spans 2.5 beats ──
 function schedule() {
@@ -68,12 +91,20 @@ function renderText() {
       let pos = 0;
       for (const { w, i } of ws) {
         ln.append(line.slice(pos, w.start));
-        const sp = document.createElement("span"); sp.className = "w"; sp.textContent = w.text; sp.dataset.i = i;
+        const sp = document.createElement("span"); sp.className = "w"; sp.dataset.i = i;
+        const r = S.rhymes && rhymeOf(i);
+        if (r) {
+          const c = RHYME_INK[r.family % RHYME_INK.length], a = rhymeStrength(i) >= 0.8 ? 1 : 0.6;
+          const k = document.createElement("span"); k.className = "rh"; k.style.color = css(c, a); k.textContent = w.text.slice(r.letters[0], r.letters[1]);
+          sp.append(w.text.slice(0, r.letters[0]), k, w.text.slice(r.letters[1]));
+        } else sp.textContent = w.text;
         sp.style.setProperty("--g", w.gate.toFixed(2));
         sp.onclick = () => { S.sel = i; seek(i); detail(); };
         ln.append(sp); pos = w.end;
       }
       ln.append(line.slice(pos));
+      const sch = S.rhymes && S.poem.rhymes?.scheme?.[`${si}.${li}`];
+      if (sch) { const m = document.createElement("span"); m.className = "scheme"; m.textContent = sch; ln.append(m); }
       st.append(ln);
     });
     el.append(st);
@@ -101,7 +132,15 @@ function detail() {
     }).join("")}</tr>`;
   }
   h += `</table>`;
-  const wts = weightsAt(r, 0.5, { threshold: S.threshold });
+  const rr = rhymeOf(i);
+  if (rr) {
+    const mates = (S.poem.rhymes.pairs || []).filter((p) => p.a === i || p.b === i).map((p) => {
+      const o = S.poem.words[p.a === i ? p.b : p.a];
+      return `${o.text} <span class="muted">${p.kind}${p.jev != null ? ", Jev " + p.jev.toFixed(2) : ""} → ${p.strength.toFixed(2)}</span>`;
+    });
+    h += `<div class="fx"><span style="color:${css(RHYME_INK[rr.family % RHYME_INK.length])}">rhymes with</span> ${mates.join(" · ")}</div>`;
+  }
+  const wts = weightsAt(r, 0.5, { threshold: S.threshold, top: S.top });
   const on = Object.entries(wts).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
   h += `<div class="fx">${on.length ? on.map(([k, v]) => `${k} <span class="muted">${v.toFixed(2)}</span>`).join(" · ") : `<span class="muted">still</span>`}</div>`;
   $("#detail").innerHTML = h;
@@ -135,8 +174,11 @@ for (const L of LAYERS) {
 }
 function syncLayer() { for (const b of document.querySelectorAll("#layers button")) b.classList.toggle("on", b.dataset.l === S.layer); }
 syncLayer();
+$("#rhymes").onclick = () => { S.rhymes = !S.rhymes; $("#rhymes").classList.toggle("on", S.rhymes); renderText(); highlight(); detail(); };
+$("#rhymes").classList.toggle("on", S.rhymes);
 $("#play").onclick = () => { S.playing = !S.playing; $("#play").textContent = S.playing ? "pause" : "play"; };
 $("#wpm").oninput = (e) => { S.wpm = +e.target.value; $("#wpmv").textContent = S.wpm + " words/min"; schedule(); S.T = S.times[S.cur]; };
+$("#top").oninput = (e) => { S.top = +e.target.value; $("#topv").textContent = S.top; detail(); };
 $("#thr").oninput = (e) => { S.threshold = +e.target.value; $("#thrv").textContent = S.threshold.toFixed(2); detail(); };
 addEventListener("keydown", (e) => {
   if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT") return;
@@ -164,8 +206,9 @@ function frame() {
     if (idx < 0) { word.update({ t: 0, T: S.T }, {}); continue; }
     const t = (S.T - S.times[idx]) / S.perf;
     const w = S.poem.words[idx];
-    if (t < 0 || t > 1) { word.update({ t: 0, T: S.T }, {}, t < 0 ? 0.55 : 1); continue; }   // not yet read: faint
-    word.update({ t, T: S.T - S.times[idx] }, weightsAt(resolved(w), S.T, { threshold: S.threshold }));
+    const tint = rhymeTint(idx, S.T);
+    if (t < 0 || t > 1) { word.update({ t: 0, T: S.T }, {}, t < 0 ? 0.55 : 1, tint); continue; }   // not yet read: faint
+    word.update({ t, T: S.T - S.times[idx] }, weightsAt(resolved(w), S.T, { threshold: S.threshold, top: S.top }), 1, tint);
   }
   tx.render();
   requestAnimationFrame(frame);

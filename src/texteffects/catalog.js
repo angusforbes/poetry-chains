@@ -48,7 +48,7 @@ export function resolve(poles, gate = 1) {
 
 /** Effect weights at time T: a torn axis flickers between its two effects instead of playing both or neither.
  *  threshold: weights below it are dropped and the rest rescaled, so faint scores stay still. */
-export function weightsAt(resolved, T, { threshold = 0.18, flicker = 1.3 } = {}) {
+export function weightsAt(resolved, T, { threshold = 0.18, flicker = 1.3, top = Infinity } = {}) {
   const w = {};
   const f = 0.5 + 0.5 * Math.sin(T * Math.PI * flicker);
   const keep = (x) => (x <= threshold ? 0 : (x - threshold) / (1 - threshold));
@@ -57,6 +57,11 @@ export function weightsAt(resolved, T, { threshold = 0.18, flicker = 1.3 } = {})
     if (!r) continue;
     w[a.pos.effect] = keep(Math.max(0, r.direction) + r.torn * 2 * f);
     w[a.neg.effect] = keep(Math.max(0, -r.direction) + r.torn * 2 * (1 - f));
+  }
+  if (Number.isFinite(top)) {                        // only the word's strongest axes play (by resolved strength, stable in time)
+    const rank = AXES.map((a) => [a, Math.abs(resolved.axes[a.id]?.direction || 0) + (resolved.axes[a.id]?.torn || 0)])
+      .sort((x, y) => y[1] - x[1]);
+    for (const [a] of rank.slice(top)) { w[a.pos.effect] = 0; w[a.neg.effect] = 0; }
   }
   return w;
 }

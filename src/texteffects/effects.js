@@ -20,6 +20,11 @@ export function rnd(a, b = 0, c = 0) {
   return (h >>> 0) / 4294967296;
 }
 const wob = (i, k, T, f) => Math.sin(T * f * TAU + rnd(i, k) * TAU);
+/** motion blur: fading copies of the letter trailing back along (dx, dy), the way it came */
+function blur(a, dx, dy, alpha, color, n = 4) {
+  if (Math.hypot(dx, dy) < 0.5 || alpha <= 0.01) return;
+  for (let k = 1; k <= n; k++) a.ghost(-dx * k / n, -dy * k / n, 1, 1, alpha * (1 - k / (n + 1)) * 0.5, color);
+}
 
 export const COLORS = {
   ember: [0.80, 0.27, 0.05], ice: [0.45, 0.64, 0.80], rose: [0.74, 0.30, 0.44], grey: [0.55, 0.53, 0.5],
@@ -30,7 +35,7 @@ export const COLORS = {
   dusk: [0.52, 0.40, 0.50], moss: [0.30, 0.42, 0.22], storm: [0.30, 0.38, 0.46], drum: [0.52, 0.16, 0.10],
   bronze: [0.68, 0.48, 0.20],
 };
-// Effects draw only letters (and copies of letters) and soft dots: no hairlines or shapes.
+// Effects draw only letters and copies of letters (glows, reflections, motion blur): no dots, hairlines or shapes.
 
 export const FX = {
   // ── joy ↔ sorrow ──
@@ -41,17 +46,15 @@ export const FX = {
     const squash = s * e * 0.18 * Math.max(0, 1 - hop * 4);   // squash on landing
     a.sx *= 1 + squash; a.sy *= 1 - squash;
     a.ink(COLORS.gold, 0.8 * s * e);
+    blur(a, 0, Math.cos(ph * Math.PI) * Math.sign(Math.sin(ph * Math.PI)) * L.h * 0.12 * s * e, 0.8 * s * e, COLORS.gold, 3);
   },
   liquid(L, s, { t, T, e }, a) {
     const melt = s * e;
     a.sy *= 1 + 0.45 * melt * (0.6 + 0.4 * rnd(L.i, 7)); a.y -= L.h * 0.2 * melt;   // sag downward
     a.sx *= 1 - 0.08 * melt;
     a.ink(COLORS.tear, 0.55 * melt);
-    for (let k = 0; k < 3; k++) {                    // drops that bead off the bottom and fall
-      const period = 1.6 + rnd(L.i, k, 3), ph = ((T + rnd(L.i, k) * period) % period) / period;
-      a.dot(L.x + L.w * (0.25 + 0.5 * rnd(L.i, k, 5)), -L.h * 0.2 * melt - ph * ph * L.h * 2.2,
-        (2.2 + 2 * (1 - ph)) * melt, melt * (1 - ph), COLORS.tear);
-    }
+    const period = 1.8 + rnd(L.i, 3), ph = ((T + rnd(L.i) * period) % period) / period;   // the letter drips: a copy slides down and thins
+    a.ghost(0, -ph * ph * L.h * 1.4 * melt, 1 - 0.5 * ph, 1 + 0.8 * ph, 0.35 * melt * (1 - ph), COLORS.tear);
   },
   // ── ascent ↔ descent ──
   rise(L, s, { t, e }, a) {
@@ -59,6 +62,8 @@ export const FX = {
     a.y += s * lift * L.h * (1.1 + 0.5 * L.i / L.n); a.x += s * lift * L.w * 0.15 * L.i;
     a.op *= 1 - 0.25 * s * lift;
     a.ink(COLORS.sky, 0.75 * s * e);
+    const v = smooth(L.i / L.n * 0.4, 0.6 + L.i / L.n * 0.4, t + 0.03) - smooth(L.i / L.n * 0.4, 0.6 + L.i / L.n * 0.4, t);
+    blur(a, 0, v * L.h * 12 * s, s, COLORS.sky, 4);
   },
   sink(L, s, { t, T, e }, a) {
     const d = smooth(L.i / L.n * 0.3, 0.55 + L.i / L.n * 0.3, t) * e;
@@ -74,10 +79,9 @@ export const FX = {
     a.ink(COLORS.ember, 0.85 * b);
     a.op *= 1 - 0.45 * b * smooth(0.3, 0.7, t);
     a.y += Math.sin(T * 9 + L.i) * 0.8 * b;
-    for (let k = 0; k < 4; k++) {                    // embers rising and winking out
-      const period = 1.1 + rnd(L.i, k, 9) * 0.8, ph = ((T + rnd(L.i, k) * period) % period) / period;
-      a.dot(L.x + L.w * rnd(L.i, k, 1) + Math.sin(ph * 6 + k) * 4, ph * L.h * 2.4,
-        (1.5 + 2.5 * rnd(L.i, k, 2)) * b, b * (1 - ph) * (ph < 0.1 ? ph * 10 : 1), COLORS.ember);
+    for (let k = 0; k < 3; k++) {                    // flames: copies of the letter licking upward, thinning, flickering
+      const period = 0.9 + rnd(L.i, k, 9) * 0.6, ph = ((T + rnd(L.i, k) * period) % period) / period;
+      a.ghost(Math.sin(ph * 6 + k + T * 3) * 3 * b, ph * L.h * 0.9 * b, 1 - 0.35 * ph, 1 + 0.5 * ph, 0.4 * b * (1 - ph), k ? COLORS.ember : COLORS.gold);
     }
   },
   freeze(L, s, { t, e }, a) {
@@ -85,9 +89,8 @@ export const FX = {
     a.ink(COLORS.ice, 0.8 * f);
     a.still = Math.max(a.still, f);                  // damps other motion (applied at the end)
     const grow = smooth(0.1, 0.6, t) * f;
-    for (let k = 0; k < 7; k++)                      // frost: pale specks settling on the strokes
-      a.dot(L.x + L.w * rnd(L.i, k, 4), L.h * rnd(L.i, k, 6), 1.2 + 1.6 * rnd(L.i, k, 8), 0.8 * grow, [0.85, 0.92, 1.0]);
-    a.ghost(0, 0, 1.04, 1.04, 0.25 * grow, [0.8, 0.9, 1.0]);   // a pale rime around the letter
+    a.ghost(0, 0, 1.05, 1.05, 0.3 * grow, [0.8, 0.9, 1.0]);   // a pale rime around the letter
+    a.ghost(0, 0, 1.12, 1.12, 0.12 * grow, [0.85, 0.93, 1.0]);
   },
   // ── force ↔ hush ──
   embolden(L, s, { e }, a) {
@@ -116,12 +119,9 @@ export const FX = {
     const start = 0.15 + 0.35 * L.i / L.n, gone = smooth(start, start + 0.3, t) * (1 - smooth(0.8, 0.97, t));
     a.op *= 1 - s * gone;
     a.y -= s * gone * L.h * 0.15; a.rz += s * gone * 0.15 * (rnd(L.i) - 0.5);
-    for (let k = 0; k < 14; k++) {                   // dust falls from where the letter was
-      const born = start + 0.25 * rnd(L.i, k, 1), ph = Math.max(0, t - born) / 0.45;
-      if (ph <= 0 || ph >= 1) continue;
-      a.dot(L.x + L.w * rnd(L.i, k, 2) + (rnd(L.i, k, 3) - 0.5) * 20 * ph, L.h * rnd(L.i, k, 4) - ph * ph * L.h * 2,
-        1.4 + 1.8 * rnd(L.i, k, 5), s * (1 - ph) * 0.85, COLORS.grey);
-    }
+    const ph = Math.max(0, Math.min(1, (t - start) / 0.5));
+    if (ph > 0 && ph < 1)                             // the letter falls away as a smaller, fading copy, blurred by its fall
+      for (let k = 0; k < 4; k++) a.ghost((rnd(L.i, k) - 0.5) * 10 * ph, -ph * ph * L.h * (1.4 + 0.3 * k), 1 - 0.3 * ph, 1 - 0.3 * ph + 0.15 * k * ph, s * (1 - ph) * 0.3 / (k + 1), COLORS.grey);
   },
   // ── life ↔ death ──
   pulse(L, s, { T, e }, a) {
@@ -168,9 +168,8 @@ export const FX = {
     a.y += Math.sin(ang) * dist * 0.8;
     a.rz += s * out * (rnd(L.i, 3) - 0.5) * 2.4;
     a.ink(COLORS.blood, 0.8 * s * Math.min(1, out * 2));
-    for (let k = 0; k < 6; k++)                      // chips flung from the break
-      a.dot(L.x + L.w * rnd(L.i, k, 7) + (rnd(L.i, k, 8) - 0.5) * 90 * s * out, L.h * rnd(L.i, k, 9) + (rnd(L.i, k, 10) - 0.5) * 90 * s * out,
-        1.6 + 2 * rnd(L.i, k, 11), 0.8 * s * out, COLORS.blood);
+    const fly = t > hit && t < hit + 0.14 ? 1 - (t - hit) / 0.14 : 0;   // motion blur only while it flies
+    blur(a, (a.x - 0) * 0.5 * fly, a.y * 0.5 * fly, s * fly, COLORS.blood, 5);
   },
   // ── together ↔ apart ──
   attract(L, s, { t, e }, a) {
@@ -207,10 +206,9 @@ export const FX = {
     a.x += tx * k; a.y += ty * k; a.sx *= 1 - 0.45 * k; a.sy *= 1 - 0.45 * k;
     a.ink(COLORS.star, 0.6 * k);
     const twinkle = 0.6 + 0.4 * Math.sin(T * 3 + L.i * 1.7);
-    a.dot(L.x + L.w / 2 + tx * k, L.h * 0.5 + ty * k, 3.2 * k, k * twinkle, COLORS.star);
-    for (let m = 0; m < 3; m++)                      // a few faint far stars around each letter
-      a.dot(L.x + L.w / 2 + tx * k + (rnd(L.i, m, 21) - 0.5) * L.h * 2 * k, L.h * 0.5 + ty * k + (rnd(L.i, m, 22) - 0.5) * L.h * 1.4 * k,
-        1.2 + 1.4 * rnd(L.i, m, 23), k * 0.6 * (0.5 + 0.5 * Math.sin(T * 2.3 + m + L.i)), COLORS.star);
+    a.ghost(0, 0, 1.3, 1.3, 0.14 * k * twinkle, COLORS.star);   // each letter glows like a star, twinkling
+    a.ghost(0, 0, 1.7, 1.7, 0.06 * k * twinkle, COLORS.star);
+    blur(a, tx * 0.25 * (1 - smooth(0.12, 0.3, t)) * k, ty * 0.25 * (1 - smooth(0.12, 0.3, t)) * k, k, COLORS.star, 4);   // streaking out
   },
   focus(L, s, { t, e }, a) {
     const k = s * e;
@@ -245,10 +243,7 @@ export const FX = {
     a.rz -= blow * (0.6 + 1.6 * rnd(L.i, 1)) * (rnd(L.i, 2) < 0.3 ? 2.5 : 1);                          // some tumble over
     a.sx *= 1 + 0.12 * blow; a.sy *= 1 - 0.08 * blow;
     a.ink(COLORS.storm, 0.75 * k);
-    for (let m = 0; m < 3; m++) {                    // spray blown off ahead of the letter
-      const ph = ((T * 0.9 + rnd(L.i, m, 30)) % 1);
-      a.dot(L.x + L.w + ph * L.h * 3 * k, L.h * (0.2 + 0.6 * rnd(L.i, m, 31)) + Math.sin(ph * 5) * 6, 1.3, 0.5 * k * (1 - ph), COLORS.storm);
-    }
+    blur(a, blow * L.h * 0.5, 0, 0.9 * k, COLORS.storm, 5);   // streaked by the wind
   },
   settle(L, s, { t, T, e }, a) {
     const k = s * e;
@@ -270,9 +265,8 @@ export const FX = {
     a.y += up * L.h * 0.28 * k - impact * L.h * 0.05 * k;
     a.sx *= 1 + impact * 0.14 * k; a.sy *= 1 - impact * 0.16 * k;
     a.ink(COLORS.drum, 0.8 * k);
-    if (impact > 0) for (let m = 0; m < 3; m++)                  // a puff where it lands
-      a.dot(L.x + L.w * (0.2 + 0.6 * rnd(L.i, m, 40)) + (rnd(L.i, m, 41) - 0.5) * 18 * (1 - impact), -2 - (1 - impact) * 6,
-        1.5 + 1.5 * rnd(L.i, m, 42), 0.6 * k * impact, COLORS.umber);
+    if (up > 0.2) blur(a, 0, up > 0 && phase > 0.17 ? -L.h * 0.12 * k : L.h * 0.12 * k, 0.8 * k, COLORS.drum, 3);   // blurred by the stamp
+    if (impact > 0) a.ghost(0, -impact * 2, 1 + 0.3 * (1 - impact), 1 - 0.2 * (1 - impact), 0.25 * k * impact, COLORS.umber);   // the thud
   },
   ring(L, s, { T, e }, a) {
     const k = s * e;

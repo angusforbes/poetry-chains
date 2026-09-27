@@ -187,8 +187,9 @@ export class Word {
     this.group.position.set(this.x, this.y, 0);
   }
 
-  /** clock {t 0..1, T seconds, e? envelope}, weights {effectId: 0..1}, opacity (whole word) */
-  update(clock, weights, opacity = 1) {
+  /** clock {t 0..1, T seconds, e? envelope}, weights {effectId: 0..1}, opacity (whole word),
+   *  tint (optional) {from, to, color [r,g,b], amount 0..1}: recolour letters from..to-1 (e.g. the rhyming letters) */
+  update(clock, weights, opacity = 1, tint = null) {
     const c = { t: clock.t, T: clock.T, e: clock.e ?? envelope(clock.t) };
     const active = Object.entries(weights).filter(([id, s]) => s > 0.001 && FX[id]);
     for (let i = 0; i < this.letters.length; i++) {
@@ -199,7 +200,11 @@ export class Word {
       l.pivot.position.set(cx + a.x * damp, cy + a.y * damp, 0);
       l.pivot.rotation.z = a.rz * damp;
       l.pivot.scale.set(a.sx, a.sy, 1);
-      const col = a.color(), op = Math.max(0, Math.min(1, a.op)) * opacity;
+      let col = a.color(); const op = Math.max(0, Math.min(1, a.op)) * opacity;
+      if (tint && tint.amount > 0 && i >= tint.from && i < tint.to) {
+        const k = Math.min(1, tint.amount);
+        col = [col[0] + (tint.color[0] - col[0]) * k, col[1] + (tint.color[1] - col[1]) * k, col[2] + (tint.color[2] - col[2]) * k];
+      }
       if (l.main) { l.main.material.color.setRGB(...col, THREE.SRGBColorSpace); l.main.material.opacity = op; }
       this.ghosts(l, a, col, op);
     }
