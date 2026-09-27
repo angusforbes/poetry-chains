@@ -16,6 +16,7 @@ export const SCHEMA = {
     fontSize:     { v: 72,    min: 24, max: 200, step: 1, label: "type size" , hidden: true },
     lineHeight:   { v: 82,    min: 20, max: 300, step: 1, label: "line height" },
     baseline:     { v: 56,    min: 10, max: 300, step: 1, label: "baseline" , hidden: true },
+    leading:      { v: 1,     min: 0.25, max: 3, step: 0.01, label: "leading", hidden: true },
   },
   chain: {
     seed:      { v: "",   text: true, label: "begin with the word" },
@@ -82,7 +83,7 @@ export function paramQuery() {
   const q = new URLSearchParams();
   for (const [g, fields] of Object.entries(SCHEMA))
     for (const [k, f] of Object.entries(fields))
-      if (P[g][k] !== f.v) q.set(g === "look" ? k : `${g}.${k}`, f.bool ? (P[g][k] ? "1" : "0") : P[g][k]);
+      if (P[g][k] !== f.v) q.set(g === "look" ? k : `${g}.${k}`, f.bool ? (P[g][k] ? "1" : "0") : typeof P[g][k] === "number" ? +P[g][k].toFixed(4) : P[g][k]);
   return q;
 }
 
@@ -90,13 +91,80 @@ function writeUrl() {
   const q = new URLSearchParams();
   for (const [g, fields] of Object.entries(SCHEMA))
     for (const [k, f] of Object.entries(fields))
-      if (P[g][k] !== f.v) q.set(g === "look" ? k : `${g}.${k}`, f.bool ? (P[g][k] ? "1" : "0") : P[g][k]);
+      if (P[g][k] !== f.v) q.set(g === "look" ? k : `${g}.${k}`, f.bool ? (P[g][k] ? "1" : "0") : typeof P[g][k] === "number" ? +P[g][k].toFixed(4) : P[g][k]);
   const s = q.toString();
   history.replaceState(null, "", location.pathname + (s ? "?" + s : "") + location.hash);
 }
 
 const listeners = [];
 export const onChange = (fn) => listeners.push(fn);
+
+/* ── the panel: settings named for what you see, in seconds and percentages ──────────────────────
+   Each control reads and writes the underlying parameters above (which keep their 2015 names, so links
+   stay valid). s = seconds at tempo 1 (the pieces run at 0.9 × their 2015 durations). */
+const sp = () => P.look.speed;
+const PANEL = {
+  writing: { of: "look", controls: [
+    { label: "hand speed (letters/s)", keys: [["look", "letterStagger"]], min: 5, max: 500, step: 1,
+      get: () => 1000 / (Math.max(0.1, P.look.letterStagger) * sp()), set: (v) => (P.look.letterStagger = 1000 / (v * sp())) },
+    { label: "ink-in (s)", keys: [["look", "fadeDuration"]], min: 0, max: 5, step: 0.05,
+      get: () => (P.look.fadeDuration * sp()) / 1000, set: (v) => (P.look.fadeDuration = (v * 1000) / sp()) },
+  ] },
+  camera: { of: "look", controls: [
+    { label: "fill (%)", keys: [["look", "fitMargin"]], min: 20, max: 150, step: 1, get: () => 100 / P.look.fitMargin, set: (v) => (P.look.fitMargin = 100 / v) },
+    { label: "perspective (°)", keys: [["look", "fov"]], min: 10, max: 120, step: 1, get: () => P.look.fov, set: (v) => (P.look.fov = v) },
+  ] },
+  page: { of: "look", controls: [
+    { color: ["look", "textColor"], label: "ink" },
+    { color: ["look", "background"], label: "paper" },
+    { label: "leading (%)", keys: [["look", "leading"]], min: 25, max: 300, step: 1, get: () => P.look.leading * 100, set: (v) => (P.look.leading = v / 100) },
+    { label: "tracking (%)", keys: [["look", "letterSpacing"]], min: -20, max: 80, step: 1,
+      get: () => (P.look.letterSpacing / P.look.fontSize) * 100, set: (v) => (P.look.letterSpacing = (v * P.look.fontSize) / 100) },
+  ] },
+  chain: { of: "chain", controls: [
+    { text: ["chain", "seed"], label: "begin with the word" },
+    { label: "shortest chain (lines)", keys: [["chain", "minDepth"]], min: 1, max: 12, step: 1, get: () => P.chain.minDepth, set: (v) => (P.chain.minDepth = v) },
+    { label: "longest chain (lines)", keys: [["chain", "maxDepth"]], min: 1, max: 16, step: 1, get: () => P.chain.maxDepth, set: (v) => (P.chain.maxDepth = v) },
+    { label: "chains in a row", keys: [["chain", "numChains"]], min: 1, max: 20, step: 1, get: () => P.chain.numChains, set: (v) => (P.chain.numChains = v) },
+    { label: "pause after each (s)", keys: [["chain", "hold"]], min: 0, max: 30, step: 0.1, get: () => (P.chain.hold * sp()) / 1000, set: (v) => (P.chain.hold = (v * 1000) / sp()) },
+  ] },
+  lines: { of: "lines", controls: [
+    { text: ["lines", "seed"], label: "begin with the word" },
+    { label: "depth (levels)", keys: [["lines", "iterations"]], min: 1, max: 12, step: 1, get: () => P.lines.iterations, set: (v) => (P.lines.iterations = v) },
+    { label: "lines per level", keys: [["lines", "maxLines"]], min: 2, max: 60, step: 1, get: () => P.lines.maxLines, set: (v) => (P.lines.maxLines = v) },
+    { label: "pause after each level (s)", keys: [["lines", "hold"]], min: 0, max: 20, step: 0.1, get: () => (P.lines.hold * sp()) / 1000, set: (v) => (P.lines.hold = (v * 1000) / sp()) },
+  ] },
+  colocation: { of: "colocation", controls: [
+    { text: ["colocation", "seed"], label: "begin with the word" },
+    { label: "rarity from (rank)", keys: [["colocation", "rankLo"]], min: 0, max: 11000, step: 100, get: () => P.colocation.rankLo, set: (v) => (P.colocation.rankLo = v) },
+    { label: "rarity to (rank)", keys: [["colocation", "rankHi"]], min: 0, max: 18000, step: 100, get: () => P.colocation.rankHi, set: (v) => (P.colocation.rankHi = v) },
+    { label: "steps", keys: [["colocation", "nets"]], min: 1, max: 20, step: 1, get: () => P.colocation.nets, set: (v) => (P.colocation.nets = v) },
+    { label: "words per ring", keys: [["colocation", "maxCollocates"]], min: 1, max: 30, step: 1, get: () => P.colocation.maxCollocates, set: (v) => (P.colocation.maxCollocates = v) },
+    { label: "shortest word (letters)", keys: [["colocation", "minWordLength"]], min: 1, max: 8, step: 1, get: () => P.colocation.minWordLength, set: (v) => (P.colocation.minWordLength = v) },
+    { label: "ring size (%)", keys: [["colocation", "radius"]], min: 20, max: 330, step: 1, get: () => P.colocation.radius / 6, set: (v) => (P.colocation.radius = v * 6) },
+    { label: "largest word (%)", keys: [["colocation", "maxSizeScale"]], min: 100, max: 600, step: 5, get: () => P.colocation.maxSizeScale * 100, set: (v) => (P.colocation.maxSizeScale = v / 100) },
+    { label: "unfolding (s)", keys: [["colocation", "moveDuration"]], min: 0.1, max: 8, step: 0.1, get: () => P.colocation.moveDuration / 1000, set: (v) => (P.colocation.moveDuration = v * 1000) },
+    { label: "fill (%)", keys: [["colocation", "fitScale"]], min: 20, max: 150, step: 1, get: () => 100 / P.colocation.fitScale, set: (v) => (P.colocation.fitScale = 100 / v) },
+    { label: "pause at the end (s)", keys: [["colocation", "hold"]], min: 0, max: 20, step: 0.1, get: () => (P.colocation.hold * sp()) / 1000, set: (v) => (P.colocation.hold = (v * 1000) / sp()) },
+  ] },
+  howe: { of: "howe", controls: [
+    { label: "fewest lines", keys: [["howe", "minLines"]], min: 1, max: 40, step: 1, get: () => P.howe.minLines, set: (v) => (P.howe.minLines = v) },
+    { label: "most lines", keys: [["howe", "maxLines"]], min: 1, max: 60, step: 1, get: () => P.howe.maxLines, set: (v) => (P.howe.maxLines = v) },
+    { label: "new-cluster chance (%)", keys: [["howe", "newGroup"]], min: 0, max: 100, step: 1, get: () => P.howe.newGroup * 100, set: (v) => (P.howe.newGroup = v / 100) },
+    { label: "cluster size (lines)", keys: [["howe", "groupLines"]], min: 1, max: 20, step: 1, get: () => P.howe.groupLines, set: (v) => (P.howe.groupLines = v) },
+    { label: "scatter (%)", keys: [["howe", "spreadX"], ["howe", "spreadY"]], min: 0, max: 500, step: 5, get: () => P.howe.spreadX / 10, set: (v) => { P.howe.spreadX = v * 10; P.howe.spreadY = v * 5; } },
+    { label: "cluster leading (%)", keys: [["howe", "lineStep"]], min: 0, max: 400, step: 5, get: () => P.howe.lineStep / 1.5, set: (v) => (P.howe.lineStep = v * 1.5) },
+    { label: "tilt (°)", keys: [["howe", "rotation"]], min: 0, max: 360, step: 1, get: () => P.howe.rotation, set: (v) => (P.howe.rotation = v) },
+    { label: "fill (%)", keys: [["howe", "zoom"]], min: 10, max: 150, step: 1, get: () => 100 / P.howe.zoom, set: (v) => (P.howe.zoom = 100 / v) },
+    { label: "pause at the end (s)", keys: [["howe", "hold"]], min: 0, max: 20, step: 0.1, get: () => (P.howe.hold * sp()) / 1000, set: (v) => (P.howe.hold = (v * 1000) / sp()) },
+  ] },
+  all: { of: "all", controls: [
+    { bool: ["all", "intro"], label: "title card" },
+    { label: "Howe scatters per cycle", keys: [["all", "howeRepeats"]], min: 0, max: 12, step: 1, get: () => P.all.howeRepeats, set: (v) => (P.all.howeRepeats = v) },
+    { label: "title card pause (s)", keys: [["all", "introHold"]], min: 0, max: 60, step: 0.1, get: () => (P.all.introHold * sp()) / 1000, set: (v) => (P.all.introHold = (v * 1000) / sp()) },
+  ] },
+};
+const roundTo = (x, step) => { const d = String(step).split(".")[1]?.length || 0; return +(Math.round(x / step) * step).toFixed(d); };
 
 export function buildGui({ modes, current, onMode, onRestart, onPause, groups = null, extra = null, onPanel = null }) {
   const gui = new GUI({ title: "settings" });
@@ -105,14 +173,21 @@ export function buildGui({ modes, current, onMode, onRestart, onPause, groups = 
   gui.add(ctl, "restart").name(groups ? "a new one" : "start again");
   if (extra) for (const [label, fn] of extra) { const o = { f: () => fn(c) }; const c = gui.add(o, "f").name(label); }
   gui.add(ctl, "reset").name("back to the 2015 settings");
-  for (const [g, fields] of Object.entries(SCHEMA)) {
-    if (groups && !groups.includes(g)) continue;
-    const folder = gui.addFolder(g);
-    if (g !== "look" && g !== current && !(current === "all")) folder.close();
-    for (const [k, f] of Object.entries(fields)) {
-      if (f.plainOnly || f.hidden) continue;
-      const c = f.color ? folder.addColor(P[g], k) : f.text || f.bool ? folder.add(P[g], k) : folder.add(P[g], k, f.min, f.max, f.step);
-      c.name(f.label).onChange(() => { writeUrl(); listeners.forEach((fn) => fn(g, k, P[g][k])); });
+  const fire = (keys) => { writeUrl(); for (const [g, k] of keys) listeners.forEach((fn) => fn(g, k, P[g][k])); };
+  for (const [name, sec] of Object.entries(PANEL)) {
+    if (groups && !groups.includes(sec.of)) continue;
+    const folder = gui.addFolder(name);
+    if (sec.of !== "look" && sec.of !== current && current !== "all") folder.close();
+    for (const c of sec.controls) {
+      const direct = c.color || c.text || c.bool;
+      if (direct) {
+        const [g, k] = direct;
+        (c.color ? folder.addColor(P[g], k) : folder.add(P[g], k)).name(c.label).onChange(() => fire([direct]));
+        continue;
+      }
+      const o = {};
+      Object.defineProperty(o, "v", { get: () => roundTo(c.get(), c.step), set: (v) => c.set(v) });
+      folder.add(o, "v", c.min, c.max, c.step).name(c.label).onChange(() => fire(c.keys));
     }
   }
   addEventListener("keydown", (e) => {

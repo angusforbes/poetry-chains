@@ -78,7 +78,7 @@ export class LinesVis extends Vis {
       parent._positions_array = arr;
       arr.forEach((node, i) => {
         const o = node._text_object;
-        o.position.y = py + (i - pi) * (o._layout.height + P.lines.lineSpacing);
+        o.position.y = py + (i - pi) * (o._layout.height + P.lines.lineSpacing) * P.look.leading;
       });
       parent.children.forEach(this.alignToNode(parent));
       parent.children.forEach(traverse);

@@ -41,7 +41,7 @@ export class ChainVis extends Vis {
       objs.forEach((o) => o.position.copy(objs[0].position));
       this.fadeToArray(0, 1000)(lastObject.children).then(() => lastObject.parent && lastObject.parent.remove(lastObject));
     }
-    objs.forEach((o, i) => { o.position.y += -i * (o._layout.height + P.chain.lineGap); });
+    objs.forEach((o, i) => { o.position.y += -i * (o._layout.height + P.chain.lineGap) * P.look.leading; });
     objs = objs.map(positionLines);
     const chainObject = this.getParentObject();
     let curr;
