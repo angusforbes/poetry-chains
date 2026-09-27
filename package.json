@@ -1,0 +1,25 @@
+{
+  "name": "poetry-chains",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "vite --port 8890 --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --port 8890"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "private": "true",
+  "dependencies": {
+    "lil-gui": "^0.21.0",
+    "opentype.js": "^2.0.0",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "vite": "^8.3.1"
+  }
+}
