@@ -105,8 +105,11 @@ export const onChange = (fn) => listeners.push(fn);
 const sp = () => P.look.speed;
 const PANEL = {
   writing: { of: "look", controls: [
-    { label: "hand speed (letters/s)", keys: [["look", "letterStagger"]], min: 5, max: 500, step: 1,
-      get: () => 1000 / (Math.max(0.1, P.look.letterStagger) * sp()), set: (v) => (P.look.letterStagger = 1000 / (v * sp())) },
+    // 0 = off: no letter-by-letter writing, every letter of a line fades in at once
+    { label: "hand speed (letters/s)", keys: [["look", "letterStagger"]], min: 0, max: 200, step: 1,
+      name: (v) => (v === 0 ? "hand speed · off" : "hand speed (letters/s)"),
+      get: () => (P.look.letterStagger <= 0 ? 0 : 1000 / (P.look.letterStagger * sp())),
+      set: (v) => (P.look.letterStagger = v <= 0 ? 0 : 1000 / (v * sp())) },
     { label: "ink-in (s)", keys: [["look", "fadeDuration"]], min: 0, max: 5, step: 0.05,
       get: () => (P.look.fadeDuration * sp()) / 1000, set: (v) => (P.look.fadeDuration = (v * 1000) / sp()) },
   ] },
@@ -187,7 +190,8 @@ export function buildGui({ modes, current, onMode, onRestart, onPause, groups = 
       }
       const o = {};
       Object.defineProperty(o, "v", { get: () => roundTo(c.get(), c.step), set: (v) => c.set(v) });
-      folder.add(o, "v", c.min, c.max, c.step).name(c.label).onChange(() => fire(c.keys));
+      const ctl = folder.add(o, "v", c.min, c.max, c.step).name(c.name ? c.name(o.v) : c.label);
+      ctl.onChange(() => { if (c.name) ctl.name(c.name(o.v)); fire(c.keys); });
     }
   }
   addEventListener("keydown", (e) => {
