@@ -35,14 +35,14 @@
 <div class="title"><b>Jevving</b> · Jev reads the poem<a href="../texteffects/">← text effects</a></div>
 <div class="panel poem" id="poem"></div>
 <div class="panel detail">
-  <div class="ctl"><select id="poemsel"></select><button id="play">pause</button><button id="rhymes" title="colour the rhyming letters; the scheme in the margin">rhymes</button>
+  <div class="ctl"><select id="poemsel"></select><button id="play">pause</button><button id="rhymes" title="highlight the rhyming letters; the scheme in the margin">rhymes</button><button id="styles" title="set the kind of rhyme in the type: exact bold, slant italic, looser kinds underlined">rhyme types</button>
     <span id="layers"></span></div>
   <div class="ctl"><span class="muted">tempo</span><input id="wpm" type="range" min="20" max="160" step="1" value="70" style="width:110px"><span id="wpmv" class="muted">70 words/min</span>
     <span class="muted">threshold</span><input id="thr" type="range" min="0" max="0.6" step="0.01" value="0.18" style="width:80px"><span id="thrv" class="muted">0.18</span>
     <span class="muted">effects per word</span><input id="top" type="range" min="1" max="8" step="1" value="3" style="width:80px"><span id="topv" class="muted">3</span></div>
   <div id="key" class="ctl" style="font-size:12.5px"></div>
   <div id="detail"></div>
-  <div class="note muted">Each axis has two poles scored separately by Jev (jev-latest), in three contexts: the word alone, in its line, and in its stanza; “combined” mixes them 0.2 / 0.4 / 0.4. Bars grow left for the <span class="nn">− pole</span> and right for the <span class="pn">+ pole</span>, scaled by the gate (does the word matter here?); both sides filled means torn, and the word flickers between the two effects. “rhymes” marks the letters that rhyme: the highlighter colour groups the words that rhyme together, the type shows the kind of rhyme (key above: exact rhymes bold, slant rhymes italic, the looser kinds underlined); found from sound with the CMU dictionary, doubtful pairs checked by Jev. When the second word of a rhyme is read, the first one's highlight flares again. Click a word to inspect it and jump there; space pauses, ← → step.</div>
+  <div class="note muted">Each axis has two poles scored separately by Jev (jev-latest), in three contexts: the word alone, in its line, and in its stanza; “combined” mixes them 0.2 / 0.4 / 0.4. Bars grow left for the <span class="nn">− pole</span> and right for the <span class="pn">+ pole</span>, scaled by the gate (does the word matter here?); both sides filled means torn, and the word flickers between the two effects. “rhymes” marks the letters that rhyme: the highlighter colour groups the words that rhyme together, two or more, of any kind; “rhyme types” also sets the kind in the type (exact rhymes bold, slant rhymes italic, the looser kinds underlined); found from sound with the CMU dictionary, doubtful pairs checked by Jev. When the second word of a rhyme is read, the first one's highlight flares again. Click a word to inspect it and jump there; space pauses, ← → step.</div>
 </div>
 <script type="module" src="/src/texteffects/jevving.js"></script>
 </body>

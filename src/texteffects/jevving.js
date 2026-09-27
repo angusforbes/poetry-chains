@@ -23,9 +23,11 @@ const KIND = {
   assonance:   { ink: INK, underline: true, label: "assonance", note: "same stressed vowel: underlined" },
   weak:        { ink: [0.12, 0.45, 0.45], underline: true, label: "weak", note: "only the last, unstressed syllable: underlined, teal" },
 };
+const PLAIN = { ink: INK };
+const kindOf = (r) => (S.styles ? KIND[r.kind] || KIND.perfect : PLAIN);   // type styles only when the toggle is on
 const kindCss = (k) => `color:${css(k.ink)};${k.bold ? "font-weight:bold;-webkit-text-stroke:0.35px currentColor;" : ""}${k.italic ? "font-style:italic;" : ""}${k.underline ? "text-decoration:underline;text-underline-offset:3px;" : ""}`;
 const css = (c, a = 1) => `rgba(${c.map((x) => Math.round(x * 255)).join(",")},${a})`;
-const S = { top: 3, rhymes: true, poem: null, layer: "combined", wpm: 70, playing: true, threshold: 0.18, cur: 0, sel: null, T: 0, words: [], built: -1 };
+const S = { top: 3, rhymes: true, styles: false, poem: null, layer: "combined", wpm: 70, playing: true, threshold: 0.18, cur: 0, sel: null, T: 0, words: [], built: -1 };
 const params = new URLSearchParams(location.search);
 
 // ── scores for a word at a layer → effect weights ──
@@ -50,7 +52,7 @@ function rhymeTint(i, T) {
   const fam = S.poem.rhymes.families[r.family];
   let flash = 0;
   for (const j of fam) { const dt = T - S.times[j]; if (dt >= 0 && dt < 1.8) flash = Math.max(flash, 1 - dt / 1.8); }
-  const kind = KIND[r.kind] || KIND.perfect;
+  const kind = kindOf(r);
   return { from: r.letters[0], to: r.letters[1], color: kind.ink, amount: 0.9, bold: kind.bold, italic: kind.italic, underline: kind.underline,
            highlight: { from: r.letters[0], to: r.letters[1], color: HIGHLIGHT[r.family % HIGHLIGHT.length], alpha: Math.min(1, 0.55 + 0.45 * flash) } };
 }
@@ -107,7 +109,7 @@ function renderText() {
         const r = S.rhymes && rhymeOf(i);
         if (r) {
           const k = document.createElement("span"); k.className = "rh"; k.textContent = w.text.slice(r.letters[0], r.letters[1]);
-          k.style.cssText = kindCss(KIND[r.kind] || KIND.perfect); k.style.background = css(HIGHLIGHT[r.family % HIGHLIGHT.length]);
+          k.style.cssText = kindCss(kindOf(r)); k.style.background = css(HIGHLIGHT[r.family % HIGHLIGHT.length]);
           k.title = `${(KIND[r.kind] || KIND.perfect).label} rhyme${r.where === "internal" ? ", internal" : ""}`;
           sp.append(w.text.slice(0, r.letters[0]), k, w.text.slice(r.letters[1]));
         } else sp.textContent = w.text;
@@ -147,11 +149,14 @@ function detail() {
   h += `</table>`;
   const rr = rhymeOf(i);
   if (rr) {
-    const mates = (S.poem.rhymes.pairs || []).filter((p) => p.a === i || p.b === i).map((p) => {
-      const o = S.poem.words[p.a === i ? p.b : p.a];
-      return `${o.text} <span class="muted">${p.kind}${p.jev != null ? ", Jev " + p.jev.toFixed(2) : ""} → ${p.strength.toFixed(2)}</span>`;
+    // the whole rhyme group (any size), each member with how it is linked to this word
+    const group = S.poem.rhymes.families[rr.family].filter((j) => j !== i).map((j) => {
+      const p = (S.poem.rhymes.pairs || []).find((q) => (q.a === i && q.b === j) || (q.b === i && q.a === j));
+      const o = S.poem.words[j], rj = rhymeOf(j);
+      const how = p ? `${(KIND[p.kind] || {}).label || p.kind}${p.jev != null ? ", Jev " + p.jev.toFixed(2) : ""}` : "same group";
+      return `<span style="background:${css(HIGHLIGHT[rr.family % HIGHLIGHT.length])};${kindCss(kindOf(rj))}">${o.text}</span> <span class="muted">${how}</span>`;
     });
-    h += `<div class="fx"><span style="background:${css(HIGHLIGHT[rr.family % HIGHLIGHT.length])};${kindCss(KIND[rr.kind] || KIND.perfect)}">rhymes with</span> ${mates.join(" · ")}</div>`;
+    h += `<div class="fx"><span class="muted">rhyme group (${group.length + 1}):</span> ${group.join(" · ")}</div>`;
   }
   const wts = weightsAt(r, 0.5, { threshold: S.threshold, top: S.top });
   const on = Object.entries(wts).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
@@ -185,11 +190,13 @@ for (const L of LAYERS) {
   b.onclick = () => { S.layer = L; syncLayer(); detail(); };
   $("#layers").append(b);
 }
-$("#key").innerHTML = Object.values(KIND).map((k) => `<span title="${k.note}" style="${kindCss(k)}">${k.label}</span>`).join(" · ")
-  + ` <span class="muted">· highlighter colour = which words rhyme together</span>`;
+function key() { $("#key").innerHTML = !S.rhymes ? "" : !S.styles ? `<span class="muted">highlighter colour = words that rhyme together (any kind)</span>` : Object.values(KIND).map((k) => `<span title="${k.note}" style="${kindCss(k)}">${k.label}</span>`).join(" · ")
+  + ` <span class="muted">· highlighter colour = which words rhyme together</span>`; }
+key();
+$("#styles").onclick = () => { S.styles = !S.styles; $("#styles").classList.toggle("on", S.styles); key(); renderText(); highlight(); detail(); };
 function syncLayer() { for (const b of document.querySelectorAll("#layers button")) b.classList.toggle("on", b.dataset.l === S.layer); }
 syncLayer();
-$("#rhymes").onclick = () => { S.rhymes = !S.rhymes; $("#rhymes").classList.toggle("on", S.rhymes); renderText(); highlight(); detail(); };
+$("#rhymes").onclick = () => { S.rhymes = !S.rhymes; $("#rhymes").classList.toggle("on", S.rhymes); key(); renderText(); highlight(); detail(); };
 $("#rhymes").classList.toggle("on", S.rhymes);
 $("#play").onclick = () => { S.playing = !S.playing; $("#play").textContent = S.playing ? "pause" : "play"; };
 $("#wpm").oninput = (e) => { S.wpm = +e.target.value; $("#wpmv").textContent = S.wpm + " words/min"; schedule(); S.T = S.times[S.cur]; };

@@ -182,7 +182,8 @@ def analyse(num):
     # it joins the family as an identical echo
     for x in list(members):
         for y, w in enumerate(words):
-            if y != x and w["stanza"] == words[x]["stanza"] and norm(w["text"]) == norm(words[x]["text"]) and y not in members:
+            if (y != x and w["stanza"] == words[x]["stanza"] and norm(w["text"]) == norm(words[x]["text"]) and y not in members
+                    and norm(w["text"]) not in STOP):     # never "the", "me", "it" …
                 a_, b_ = min(x, y), max(x, y)
                 pairs.append({"a": a_, "b": b_, "where": "internal", "kind": "identical", "sound": 0.7, "bonus": 0, "strength": 0.7})
                 parent[find(y)] = find(x); members.append(y)
