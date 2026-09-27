@@ -1,3 +1,4 @@
+import { recording } from "./timeline.js";
 // The piece's clock and transitions (standing in for the d3 v3 transitions of the original).
 //
 // Time is virtual: `clock` advances by (real time × rate), and can be paused, sped up, or jumped.
@@ -54,6 +55,8 @@ function stepAll() {
         m.set(tw.channel, tw);
       }
       tw.update = tw.init ? tw.init() : null;
+      const rec = recording();
+      if (rec && tw.update && tw.target && tw.channel) rec.segment(tw);
     }
     const t = tw.duration > 0 ? Math.min(1, (clock - tw.start) / tw.duration) : 1;
     if (tw.update) tw.update(tw.ease(t));

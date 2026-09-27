@@ -28,8 +28,11 @@ The [root page](https://angusforbes.github.io/poetry-chains/) is the whole piece
 - **Transport** (bottom): pause (space), speed from 1/16× to 32× (`[` `]`, `1` resets), and a time slider that
   scrubs anywhere in the animation (← → 5 s, shift 30 s, Home). `t` hides it, `r` makes a new animation.
 
-Scrubbing works because every run is seeded and replays exactly: seeking back rebuilds the scene and
-fast-forwards event by event.
+The controls pages perform their five animations once, silently, on load, recording every transition
+(letter fades, camera moves, word spreads) and every time a line or letter enters or leaves the scene
+(`src/vis/timeline.js`). Any moment is then drawn straight from the recording, so the time slider shows
+every frame instantly in either direction. Runs are seeded, so the recording matches the live performance
+exactly.
 
 ## How it's made
 
