@@ -64,7 +64,9 @@ function stepAll() {
       const rec = recording();
       if (rec && tw.update && tw.target && tw.channel) rec.segment(tw);
     }
-    const t = tw.duration > 0 ? Math.min(1, (clock - tw.start) / tw.duration) : 1;
+    // compare against the same end time nextEvent() uses: computing the fraction first can leave a tween at
+    // 0.9999999 exactly at its end (fractional durations, e.g. a 46 ms stagger × 0.9), and it never finishes
+    const t = clock >= tw.start + tw.duration ? 1 : (clock - tw.start) / tw.duration;
     if (tw.update) tw.update(tw.ease(t));
     if (t >= 1) resolved = finish(tw, "end") || resolved;
   }
