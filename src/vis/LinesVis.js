@@ -75,10 +75,14 @@ export class LinesVis extends Vis {
       if (!parent.children) return;
       const arr = shuffle(parent.children.concat(parent));
       const pi = arr.indexOf(parent), py = parent._text_object.position.y;
+      const py0 = (parent._text_object._p0 || parent._text_object.position).y;
       parent._positions_array = arr;
       arr.forEach((node, i) => {
         const o = node._text_object;
-        o.position.y = py + (i - pi) * (o._layout.height + P.lines.lineSpacing) * P.look.leading;
+        const step = (i - pi) * (o._layout.height + P.lines.lineSpacing);
+        o.position.y = py + step * P.look.leading;
+        o._p0 = o._p0 || o.position.clone();
+        o._p0.y = py0 + step;                                // at 100% leading: what the camera frames
       });
       parent.children.forEach(this.alignToNode(parent));
       parent.children.forEach(traverse);
@@ -90,8 +94,12 @@ export class LinesVis extends Vis {
   alignToNode(parent) {
     return (child) => {
       const word = parent.word;
-      const xs = [parent, child].map((n) => { const i = this.getWordIndex(n.line, word); return i < 0 ? 0 : n._text_object.children[i].position.x; });
-      child._text_object.position.x = parent._text_object.position.x + (xs[0] - xs[1]);
+      const idx = [parent, child].map((n) => this.getWordIndex(n.line, word));
+      const at = (n, i, k) => (i < 0 ? 0 : (k ? n._text_object.children[i]._p0 : n._text_object.children[i].position).x);
+      const c = child._text_object, p = parent._text_object;
+      c.position.x = p.position.x + (at(parent, idx[0]) - at(child, idx[1]));
+      c._p0 = c._p0 || c.position.clone();
+      c._p0.x = (p._p0 || p.position).x + (at(parent, idx[0], 1) - at(child, idx[1], 1));
     };
   }
 

@@ -40,10 +40,11 @@ export class ChainVis extends Vis {
     if (lastObject) {
       const lastWord = lastObject._letters().join("");
       this.alignObjectsByWord(lastObject, objs[0], lastWord);
-      objs.forEach((o) => o.position.copy(objs[0].position));
+      objs.forEach((o) => { o.position.copy(objs[0].position); o._p0 = objs[0]._p0.clone(); });
       this.fadeToArray(0, 1000)(lastObject.children).then(() => lastObject.parent && lastObject.parent.remove(lastObject));
     }
-    objs.forEach((o, i) => { o.position.y += -i * (o._layout.height + P.chain.lineGap) * P.look.leading; });
+    objs.forEach((o) => { if (!o._p0) o._p0 = o.position.clone(); });
+    objs.forEach((o, i) => { const step = -i * (o._layout.height + P.chain.lineGap); o.position.y += step * P.look.leading; o._p0.y += step; });
     objs = objs.map(positionLines);
     const chainObject = this.getParentObject();
     let curr;
@@ -79,5 +80,6 @@ function positionLines(line, index, array) {
   const prev = array[index - 1];
   const a = prev.children[prev._line.connector_index], b = line.children[line._line.my_prev_connector_index];
   line.position.x = prev.position.x + (a ? a.position.x : 0) - (b ? b.position.x : 0);
+  line._p0.x = prev._p0.x + (a ? a._p0.x : 0) - (b ? b._p0.x : 0);   // the same, at 0% tracking
   return line;
 }

@@ -86,14 +86,17 @@ export class Stage {
   lineObject(text) {
     const s = this.em, f = this.font, chars = [...text];
     const line = new THREE.Object3D();
-    let x = 0, prev = null;
+    // _p0: where each letter would sit at 0% tracking; the camera frames that (see snapshot)
+    let x = 0, x0 = 0, prev = null;
     for (const ch of chars) {
       const g = f.charToGlyph(ch);
-      if (prev) x += f.getKerningValue(prev, g) * s;
+      if (prev) { const k = f.getKerningValue(prev, g) * s; x += k; x0 += k; }
       const m = this.letterMesh(ch);
       m.position.x = -x;
+      m._p0 = new THREE.Vector3(-x0, 0, 0);
       line.add(m);
       x += (g.advanceWidth || 0) * s + P.look.letterSpacing;
+      x0 += (g.advanceWidth || 0) * s;
       prev = g;
     }
     line._line = text;
@@ -141,23 +144,23 @@ function snapshot(objs) {
   for (const root of objs) root.traverse((m) => {
     if (!m.isMesh || !m.geometry || !m.geometry.boundingBox) return;
     const chain = [];
-    for (let a = m; a && !a.isScene; a = a.parent) chain.push({ o: a, p: a.position.clone(), q: a.quaternion.clone(), s: a.scale.clone() });
+    for (let a = m; a && !a.isScene; a = a.parent) chain.push({ o: a, p: (a._p0 || a.position).clone(), q: a.quaternion.clone(), s: a.scale.clone() });
     leaves.push({ bb: m.geometry.boundingBox, chain: chain.reverse() });
   });
   return { leaves, ver: -1, box: null };
 }
 const _m = new THREE.Matrix4(), _l = new THREE.Matrix4(), _p = new THREE.Vector3(), _b = new THREE.Box3();
-/** the box of a snapshot's glyphs with positions moved by the current layout (stage.layoutPos) */
-function boxOf(snap, stage) {
-  if (snap.ver === stage.layoutVersion && snap.box) return snap.box;
+/** the box of a snapshot's glyphs as laid out at 100% leading and 0% tracking: the camera frames that,
+ *  so changing tracking or leading changes the spacing, never the size of the letters */
+function boxOf(snap) {
+  if (snap.box) return snap.box;
   const box = new THREE.Box3();
   for (const leaf of snap.leaves) {
     _m.identity();
-    for (const a of leaf.chain) _m.multiply(_l.compose(stage.layoutPos(a.o, a.p, _p), a.q, a.s));
+    for (const a of leaf.chain) _m.multiply(_l.compose(a.p, a.q, a.s));
     box.union(_b.copy(leaf.bb).applyMatrix4(_m));
   }
-  snap.ver = stage.layoutVersion; snap.box = box;
-  return box;
+  return (snap.box = box);
 }
 
 /** The helpers of Main.coffee, shared by every visualisation. */
@@ -213,7 +216,7 @@ export class Vis {
    *  current layout (tracking, leading), so the camera follows those settings too. */
   fitTo(box, distFn, duration, dx = 0) {
     const stage = this.stage;
-    const current = () => (box._snap ? boxOf(box._snap, stage) : box);
+    const current = () => (box._snap ? boxOf(box._snap) : box);
     return this.panCameraToPosition3(() => { const b = current(), c = b.getCenter(new THREE.Vector3()); return new THREE.Vector3(c.x + dx, c.y, c.z + distFn(b)); }, duration || 1000, true);
   }
   adjustCameraToFit(obj, scale, duration) { return this.fitTo(this.getBBox(obj), (b) => this.getZoomDistanceFromBox(b, this.scaleOf(scale)), duration); }
@@ -250,7 +253,10 @@ export class Vis {
   }
   alignObjectsByWord(existing, other, word) {
     other.position.copy(existing.position);
-    const xs = [existing, other].map((e) => { const i = this.getWordIndex(e._letters().join(""), word); return i < 0 ? 0 : e.children[i].position.x; });
-    other.position.x += xs[0] - xs[1];
+    other._p0 = (existing._p0 || existing.position).clone();
+    const idx = [existing, other].map((e) => this.getWordIndex(e._letters().join(""), word));
+    const at = (e, i, k) => (i < 0 ? 0 : (k ? e.children[i]._p0 || e.children[i].position : e.children[i].position).x);
+    other.position.x += at(existing, idx[0]) - at(other, idx[1]);
+    other._p0.x += at(existing, idx[0], 1) - at(other, idx[1], 1);
   }
 }
