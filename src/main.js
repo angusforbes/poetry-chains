@@ -11,6 +11,7 @@ import { HoweVis } from "./vis/HoweVis.js";
 import { IntroVis } from "./vis/IntroVis.js";
 import { advanceTo, resetClock, now, idle } from "./vis/tween.js";
 import { reseed, seed } from "./rng.js";
+import "./ui.css";
 
 const MODES = ["all", "chain", "lines", "colocation", "howe", "intro"];
 const modeFromHash = () => { const m = location.hash.slice(1); return MODES.includes(m) ? m : "all"; };
@@ -133,8 +134,9 @@ function paint() {
   const t = T.target ?? now();
   if (!dragging) { $("time").max = span(); $("time").value = t; }
   $("tlabel").textContent = `${fmt(t)} / ${fmt(T.duration ?? T.furthest)}`;
-  $("time").style.setProperty("--seen", `${(100 * (T.duration ?? T.furthest)) / span()}%`);
-  $("play").textContent = T.paused ? "▶" : "❚❚";
+  $("time").style.setProperty("--done", `${(100 * t) / span()}%`);
+  $("rate").style.setProperty("--done", `${(100 * (Math.log2(T.rate) + 4)) / 9}%`);
+  $("play").textContent = T.paused ? "play" : "pause";
   $("rlabel").textContent = `${T.rate < 1 ? T.rate.toFixed(2) : T.rate.toFixed(T.rate % 1 ? 1 : 0)}×`;
   $("rate").value = Math.log2(T.rate);
 }
@@ -178,6 +180,10 @@ function transport() {
 
 /* ── boot ──────────────────────────────────────────────────────────────── */
 async function boot() {
+  if (CFG.controls) {                                     // the controls are set in the piece's own typeface
+    const f = new FontFace("Open Baskerville", `url(${BASE}fonts/OpenBaskerville.ttf)`);
+    document.fonts.add(f); f.load().catch(() => {});
+  }
   await stage.init(BASE + "fonts/OpenBaskerville.ttf");
   corpus = await loadCorpus(BASE + "corpus/dickinson.txt");
   vis = { chain: new ChainVis(stage), lines: new LinesVis(stage), colocation: new ColocationVis(stage), howe: new HoweVis(stage), intro: new IntroVis(stage) };
@@ -209,8 +215,8 @@ async function boot() {
   };
   buildGui({
     modes: CFG.mode ? [CFG.mode] : MODES, current: mode(),
-    groups: CFG.mode ? ["look", CFG.mode] : null,
-    extra: [["link to this animation (copies the URL)", linkHere]],
+    groups: CFG.mode && CFG.mode !== "all" ? ["look", CFG.mode] : null,
+    extra: [["copy a link to this one", linkHere]],
     onMode: (m) => { location.hash = m; }, onRestart: fresh, onPause: togglePause,
   });
   onChange((g, k) => {

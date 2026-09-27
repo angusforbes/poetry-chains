@@ -1,0 +1,171 @@
+/* The controls, dressed to belong to the piece: paper, ink, hairlines, Open Baskerville. */
+
+:root {
+  --ink: #111;
+  --ink-2: #555;
+  --ink-3: #9a958b;
+  --rule: #ddd8cd;
+  --paper: rgba(253, 252, 249, 0.94);
+  --ui-serif: "Open Baskerville", "Iowan Old Style", Georgia, serif;
+}
+
+/* ── settings panel (lil-gui) ─────────────────────────────────────────── */
+/* lil-gui declares its variables on every nested .lil-gui, so ours must be declared on each of them too */
+body .lil-gui {
+  --background-color: transparent;
+  --text-color: var(--ink);
+  --title-background-color: transparent;
+  --title-text-color: var(--ink-3);
+  --widget-color: transparent;
+  --hover-color: transparent;
+  --focus-color: transparent;
+  --number-color: var(--ink);
+  --string-color: var(--ink);
+  --font-family: var(--ui-serif);
+  --font-family-mono: var(--ui-serif);
+  --font-size: 13.5px;
+  --input-font-size: 13.5px;
+  --widget-height: 22px;
+  --title-height: 30px;
+  --padding: 6px;
+  --spacing: 5px;
+  --name-width: 52%;
+  --slider-input-width: 30%;
+  --slider-input-min-width: 44px;
+  --widget-border-radius: 0;
+  --folder-indent: 0px;
+  --scrollbar-width: 4px;
+  --slider-knob-width: 0px;
+  font-family: var(--ui-serif);
+}
+body .lil-gui.lil-root {
+  top: 14px !important;
+  right: 16px !important;
+  width: 290px;
+  background: transparent;
+  color: var(--ink);
+  opacity: 0.4;
+  transition: opacity 0.35s;
+}
+.lil-gui.lil-root:hover, .lil-gui.lil-root:not(.lil-closed) { opacity: 1; }
+.lil-gui.lil-root:not(.lil-closed) {
+  background: var(--paper);
+  backdrop-filter: blur(6px);
+  border-left: 1px solid var(--rule);
+  box-shadow: -24px 0 48px rgba(0, 0, 0, 0.04);
+  padding: 4px 12px 14px 16px;
+  max-height: calc(100vh - 90px);
+}
+
+/* the root title: just a word in the corner */
+.lil-gui.lil-root > .lil-title {
+  font: italic 15px var(--ui-serif);
+  letter-spacing: 0.02em;
+  text-align: right;
+  color: var(--ink-2);
+  border: 0;
+  padding: 0 2px;
+}
+.lil-gui.lil-root > .lil-title::before { display: none; }
+.lil-gui .lil-title:hover { color: var(--ink); }
+
+/* folders: small caps heads over a hairline */
+.lil-gui .lil-gui > .lil-title {
+  font: 11px var(--ui-serif);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  border-top: 1px solid var(--rule);
+  border-bottom: 0 !important;
+  margin-top: 10px;
+  padding-top: 10px;
+  height: auto;
+  line-height: 1.4;
+}
+.lil-gui .lil-gui > .lil-title::before { font-size: 9px; margin-right: 6px; color: var(--ink-3); }
+.lil-gui .lil-children { border: 0; }
+.lil-gui .lil-gui .lil-children { padding-left: 0; }
+
+.lil-gui .lil-controller { border: 0; min-height: 26px; }
+.lil-gui .lil-controller .lil-name { font-family: var(--ui-serif); color: var(--ink-2); font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lil-gui .lil-controller:hover .lil-name { color: var(--ink); }
+
+/* numbers: bare figures, underlined only while editing */
+.lil-gui input { color: var(--ink); background: transparent; border: 0; border-bottom: 1px solid transparent; border-radius: 0; font-family: var(--ui-serif); font-variant-numeric: oldstyle-nums; padding: 0 2px; }
+.lil-gui input:focus, .lil-gui input:hover { border-bottom-color: var(--rule); background: transparent; }
+.lil-gui .lil-number input { text-align: right; }
+.lil-gui .lil-string input { border-bottom: 1px solid var(--rule); font-style: italic; }
+.lil-gui .lil-string input::placeholder { color: var(--ink-3); }
+
+/* sliders: a hairline, the value drawn in ink, a small dot at the end */
+.lil-gui .lil-slider { background: transparent !important; box-shadow: none !important; height: 18px; border-radius: 0; position: relative; cursor: ew-resize; }
+.lil-gui .lil-slider::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid var(--rule); }
+.lil-gui .lil-slider .lil-fill { background: transparent !important; border-right: 0 !important; height: 100%; border: 0; position: relative; }
+.lil-gui .lil-slider .lil-fill::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px solid var(--ink); }
+.lil-gui .lil-slider .lil-fill::after { content: ""; position: absolute; right: -3.5px; top: calc(50% - 3px); width: 7px; height: 7px; border-radius: 50%; background: var(--ink); }
+.lil-gui .lil-slider:hover .lil-fill::after, .lil-gui .lil-dragging .lil-fill::after { transform: scale(1.35); }
+
+/* buttons: italic words */
+.lil-gui button, .lil-gui .lil-controller button {
+  font: italic 14px var(--ui-serif);
+  color: var(--ink);
+  background: transparent !important;
+  border: 0;
+  border-radius: 0;
+  text-align: left;
+  padding: 0;
+  height: 24px;
+}
+.lil-gui .lil-controller:has(> button) { min-height: 24px; }
+.lil-gui button:hover { text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+
+/* colours: a round swatch and its hex */
+.lil-gui .lil-color .lil-display { border-radius: 50%; width: 16px; height: 16px; flex: 0 0 16px; border: 1px solid var(--rule); }
+.lil-gui .lil-color input[type="text"] { font-variant: small-caps; letter-spacing: 0.05em; }
+
+/* checkboxes: a small ring */
+.lil-gui input[type="checkbox"] { appearance: none; width: 12px; height: 12px; border: 1px solid var(--ink-2); border-radius: 50%; }
+.lil-gui input[type="checkbox"]:checked { background: var(--ink); border-color: var(--ink); }
+
+.lil-gui select { font: italic 14px var(--ui-serif); background: transparent; border: 0; color: var(--ink); }
+.lil-gui .lil-children::-webkit-scrollbar-thumb { background: var(--rule); }
+
+/* ── transport ────────────────────────────────────────────────────────── */
+#transport {
+  position: fixed; left: 0; right: 0; bottom: 0;
+  display: flex; align-items: center; gap: 22px;
+  padding: 14px 28px 18px;
+  font: 14px var(--ui-serif); color: var(--ink-2);
+  font-variant-numeric: oldstyle-nums;
+  opacity: 0.12; transition: opacity 0.4s;
+}
+#transport:hover, body.seeking #transport, body.paused-ui #transport { opacity: 1; }
+body.hide-transport #transport { display: none; }
+
+#transport button {
+  font: italic 15px var(--ui-serif); color: var(--ink);
+  background: none; border: 0; padding: 0; width: 44px; text-align: left; cursor: pointer;
+}
+#transport button:hover { text-decoration: underline; text-decoration-color: var(--rule); text-underline-offset: 3px; }
+#transport label { display: flex; align-items: center; gap: 10px; white-space: nowrap; font-style: italic; color: var(--ink-3); }
+#rlabel { width: 38px; color: var(--ink); font-style: normal; }
+#tlabel { width: 92px; text-align: right; font-style: italic; }
+#seekmsg { display: none; font-style: italic; color: var(--ink-3); }
+body.seeking #seekmsg { display: inline; }
+
+/* hairline sliders with an ink dot */
+#transport input[type="range"] { appearance: none; -webkit-appearance: none; background: transparent; height: 18px; margin: 0; cursor: pointer; }
+#rate { width: 130px; }
+#time { flex: 1; min-width: 200px; }
+#transport input[type="range"]::-webkit-slider-runnable-track {
+  height: 1px;
+  background: linear-gradient(90deg, var(--ink) var(--done, 0%), var(--rule) var(--done, 0%));
+}
+#transport input[type="range"]::-moz-range-track { height: 1px; background: var(--rule); }
+#transport input[type="range"]::-moz-range-progress { height: 1px; background: var(--ink); }
+#transport input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 9px; height: 9px; margin-top: -4px; border-radius: 50%; background: var(--ink); border: 0;
+  transition: transform 0.15s;
+}
+#transport input[type="range"]::-moz-range-thumb { width: 9px; height: 9px; border-radius: 50%; background: var(--ink); border: 0; }
+#transport input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.3); }

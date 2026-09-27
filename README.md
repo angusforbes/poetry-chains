@@ -15,7 +15,9 @@ Each plays one animation and stops; reload for a new one.
 | **Collocation Nets**: a word and the words that keep its company | [colocation](https://angusforbes.github.io/poetry-chains/colocation/) | [colocation/controls](https://angusforbes.github.io/poetry-chains/colocation/controls/) |
 | **Howe**: scattered, rotated lines, after Susan Howe (5 in a row) | [howe](https://angusforbes.github.io/poetry-chains/howe/) | [howe/controls](https://angusforbes.github.io/poetry-chains/howe/controls/) |
 
-The [whole piece](https://angusforbes.github.io/poetry-chains/) loops through every mode in the original order
+| **The whole piece**: every mode in the original order, looping forever | [all](https://angusforbes.github.io/poetry-chains/all/) | [all/controls](https://angusforbes.github.io/poetry-chains/all/controls/) |
+
+The [root page](https://angusforbes.github.io/poetry-chains/) is the whole piece with controls
 (`#chain`, `#lines`, `#colocation`, `#howe`, `#intro` pick one).
 
 ## Controls (the /controls pages)
