@@ -1,7 +1,7 @@
 // Entry point for every page. A page sets window.PC_CONFIG before loading this:
 //   { mode: "chain" | "lines" | "colocation" | "howe", once: true, controls: true | false }
 // Without a config (the root page) it behaves like the 2015 piece: #all or #<mode>, looping, with controls.
-import { P, buildGui, onChange } from "./params.js";
+import { P, buildGui, onChange, paramQuery } from "./params.js";
 import { loadCorpus } from "./corpus/Corpus.js";
 import { Stage } from "./vis/Stage.js";
 import { ChainVis } from "./vis/ChainVis.js";
@@ -47,7 +47,8 @@ async function play(m) {
   const my = ++run, alive = () => my === run;
   doneAt = null;
   marks = [];
-  const limit = CFG.controls ? PRELOAD : CFG.once ? (m === "howe" ? P.howe.runs : 1) : Infinity;
+  const asked = Number(new URLSearchParams(location.search).get("animations"));   // a shared sequence says how many
+  const limit = CFG.controls ? PRELOAD : asked > 0 ? asked : CFG.once ? (m === "howe" ? P.howe.runs : 1) : Infinity;
   let count = 0;
   const one = async (k, w) => { marks.push({ t: now(), mode: k }); const d = data(k, w); await vis[k].start(d); count++; return d; };
   try {
@@ -112,7 +113,7 @@ async function drive() {
     const t = await new Promise(requestAnimationFrame);
     const dt = Math.min(100, t - last);
     last = t;
-    if (!CFG.controls) { if (!window.__pcHold) await advanceTo(now() + dt); continue; }       // plain pages: the live performance
+    if (!CFG.controls) { if (!window.__pcHold) await advanceTo(now() + dt * T.rate); continue; }   // plain pages: the live performance
     if (!REC) continue;
     if (!T.paused) {
       let nt = T.t + dt * T.rate;
@@ -209,15 +210,32 @@ async function boot() {
   };
   let rt;
   const remeasure = () => { clearTimeout(rt); rt = setTimeout(() => again(seed, T.t), 350); };   // same five, new setting, same moment
-  const linkHere = () => {
+  const copied = async (c, url, label) => {
+    let ok = true;
+    try { await navigator.clipboard.writeText(url); } catch { ok = false; }
+    c.name(ok ? "copied ✓" : "copy failed: see the address bar");
+    if (!ok) history.replaceState(null, "", url);
+    setTimeout(() => c.name(label), 2200);
+  };
+  const LINK = "copy a link to this one (with controls)";
+  const linkHere = (c) => {
     const q = new URLSearchParams(location.search); q.set("seed", seed);
     history.replaceState(null, "", location.pathname + "?" + q + location.hash);
-    navigator.clipboard?.writeText(location.href).catch(() => {});
+    copied(c, location.href, LINK);
+  };
+  // the plain page for this mode, with exactly these settings, this seed and these five: just for viewing
+  const SHARE = "share sequence (no controls)";
+  const shareSequence = (c) => {
+    const q = paramQuery();
+    q.set("seed", seed);
+    q.set("animations", PRELOAD);
+    if (T.rate !== 1) q.set("rate", +T.rate.toFixed(3));
+    copied(c, `${location.origin}${BASE}${mode()}/?${q}`, SHARE);
   };
   buildGui({
     modes: CFG.mode ? [CFG.mode] : MODES, current: mode(),
     groups: CFG.mode && CFG.mode !== "all" ? ["look", CFG.mode] : null,
-    extra: [["copy a link to this one", linkHere]],
+    extra: [[SHARE, shareSequence], [LINK, linkHere]],
     onMode: (m) => { location.hash = m; }, onRestart: fresh, onPause: togglePause,
   });
   onChange((g, k) => {

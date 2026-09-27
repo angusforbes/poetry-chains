@@ -77,6 +77,15 @@ for (const [key, val] of q) {
   P[g][k] = f.text || f.color ? val : f.bool ? val === "1" || val === "true" : Number(val);
 }
 
+/** the parameters that differ from the 2015 defaults, as URL query entries */
+export function paramQuery() {
+  const q = new URLSearchParams();
+  for (const [g, fields] of Object.entries(SCHEMA))
+    for (const [k, f] of Object.entries(fields))
+      if (P[g][k] !== f.v) q.set(g === "look" ? k : `${g}.${k}`, f.bool ? (P[g][k] ? "1" : "0") : P[g][k]);
+  return q;
+}
+
 function writeUrl() {
   const q = new URLSearchParams();
   for (const [g, fields] of Object.entries(SCHEMA))
@@ -94,7 +103,7 @@ export function buildGui({ modes, current, onMode, onRestart, onPause, groups = 
   const ctl = { mode: current, restart: onRestart, pause: () => onPause(), reset: () => { history.replaceState(null, "", location.pathname + location.hash); location.reload(); } };
   if (modes.length > 1) gui.add(ctl, "mode", modes).name("mode").onChange(onMode);
   gui.add(ctl, "restart").name(groups ? "a new one" : "start again");
-  if (extra) for (const [label, fn] of extra) gui.add({ [label]: fn }, label);
+  if (extra) for (const [label, fn] of extra) { const o = { f: () => fn(c) }; const c = gui.add(o, "f").name(label); }
   gui.add(ctl, "reset").name("back to the 2015 settings");
   for (const [g, fields] of Object.entries(SCHEMA)) {
     if (groups && !groups.includes(g)) continue;

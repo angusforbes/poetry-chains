@@ -25,6 +25,9 @@ The [root page](https://angusforbes.github.io/poetry-chains/) is the whole piece
 - **Parameter panel** (top right): every number the 2015 piece hard-coded, with the 2015 value as default.
   Changes are written to the URL, so a setting is a link. "Link to this animation" copies a URL that replays
   exactly this run.
+- **Share sequence** (in the panel): copies a link to the plain page, no controls, that plays exactly these five
+  animations with these settings and this speed (`?seed=…&animations=5&…`). "Copy a link to this one" does the
+  same but keeps the controls.
 - **Transport** (bottom): pause (space), speed from 1/16× to 32× (`[` `]`, `1` resets), and a time slider that
   scrubs anywhere in the animation (← → 5 s, shift 30 s, Home). `t` hides it, `r` makes a new animation.
 
