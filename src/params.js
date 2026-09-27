@@ -88,14 +88,16 @@ function writeUrl() {
 const listeners = [];
 export const onChange = (fn) => listeners.push(fn);
 
-export function buildGui({ modes, current, onMode, onRestart, onPause }) {
+export function buildGui({ modes, current, onMode, onRestart, onPause, groups = null, extra = null }) {
   const gui = new GUI({ title: "Poetry Chains · parameters" });
   gui.domElement.style.setProperty("--width", "300px");
   const ctl = { mode: current, restart: onRestart, pause: () => onPause(), reset: () => { history.replaceState(null, "", location.pathname + location.hash); location.reload(); } };
-  gui.add(ctl, "mode", modes).name("mode").onChange(onMode);
-  gui.add(ctl, "restart").name("restart now (↻)");
+  if (modes.length > 1) gui.add(ctl, "mode", modes).name("mode").onChange(onMode);
+  gui.add(ctl, "restart").name(groups ? "new animation (r)" : "restart now (↻)");
+  if (extra) for (const [label, fn] of extra) gui.add({ [label]: fn }, label);
   gui.add(ctl, "reset").name("reset all to 2015 defaults");
   for (const [g, fields] of Object.entries(SCHEMA)) {
+    if (groups && !groups.includes(g)) continue;
     const folder = gui.addFolder(g);
     if (g !== "look" && g !== current && !(current === "all")) folder.close();
     for (const [k, f] of Object.entries(fields)) {
