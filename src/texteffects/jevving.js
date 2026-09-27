@@ -13,14 +13,17 @@ const LAYERS = ["word", "line", "stanza", "combined"];
 // rhymes: a light highlighter per pair/group (which words rhyme), and the ink of the rhyming letters for the kind
 const HIGHLIGHT = [[1.00, 0.94, 0.55], [0.72, 0.93, 0.70], [1.00, 0.78, 0.87], [0.74, 0.87, 1.00], [1.00, 0.85, 0.66],
                    [0.86, 0.80, 1.00], [0.70, 0.93, 0.88], [1.00, 0.80, 0.74], [0.90, 0.93, 0.62], [0.82, 0.90, 0.96]];
+// the kind of rhyme is set in the type: exact rhymes bold, slant rhymes italic, the looser kinds underlined
+const INK = [0.04, 0.04, 0.04];
 const KIND = {
-  perfect:     { ink: [0.11, 0.31, 0.57], label: "perfect", note: "same vowel and ending" },
-  slant:       { ink: [0.71, 0.33, 0.10], label: "slant", note: "same final consonants, different vowel" },
-  "vowel-end": { ink: [0.49, 0.24, 0.55], label: "vowel ending", note: "both end on a similar vowel" },
-  identical:   { ink: [0.30, 0.35, 0.39], label: "identical", note: "the same word again" },
-  weak:        { ink: [0.12, 0.45, 0.45], label: "weak", note: "only the last, unstressed syllable" },
-  assonance:   { ink: [0.42, 0.42, 0.10], label: "assonance", note: "same stressed vowel" },
+  perfect:     { ink: INK, bold: true, label: "perfect", note: "same vowel and ending: bold" },
+  identical:   { ink: INK, bold: true, label: "identical", note: "the same word again: bold" },
+  slant:       { ink: INK, italic: true, label: "slant", note: "same final consonants, different vowel: italic" },
+  "vowel-end": { ink: INK, underline: true, label: "vowel ending", note: "both end on a similar vowel: underlined" },
+  assonance:   { ink: INK, underline: true, label: "assonance", note: "same stressed vowel: underlined" },
+  weak:        { ink: [0.12, 0.45, 0.45], underline: true, label: "weak", note: "only the last, unstressed syllable: underlined, teal" },
 };
+const kindCss = (k) => `color:${css(k.ink)};${k.bold ? "font-weight:bold;-webkit-text-stroke:0.35px currentColor;" : ""}${k.italic ? "font-style:italic;" : ""}${k.underline ? "text-decoration:underline;text-underline-offset:3px;" : ""}`;
 const css = (c, a = 1) => `rgba(${c.map((x) => Math.round(x * 255)).join(",")},${a})`;
 const S = { top: 3, rhymes: true, poem: null, layer: "combined", wpm: 70, playing: true, threshold: 0.18, cur: 0, sel: null, T: 0, words: [], built: -1 };
 const params = new URLSearchParams(location.search);
@@ -48,7 +51,7 @@ function rhymeTint(i, T) {
   let flash = 0;
   for (const j of fam) { const dt = T - S.times[j]; if (dt >= 0 && dt < 1.8) flash = Math.max(flash, 1 - dt / 1.8); }
   const kind = KIND[r.kind] || KIND.perfect;
-  return { from: r.letters[0], to: r.letters[1], color: kind.ink, amount: 0.9,
+  return { from: r.letters[0], to: r.letters[1], color: kind.ink, amount: 0.9, bold: kind.bold, italic: kind.italic, underline: kind.underline,
            highlight: { from: r.letters[0], to: r.letters[1], color: HIGHLIGHT[r.family % HIGHLIGHT.length], alpha: Math.min(1, 0.55 + 0.45 * flash) } };
 }
 
@@ -104,7 +107,7 @@ function renderText() {
         const r = S.rhymes && rhymeOf(i);
         if (r) {
           const k = document.createElement("span"); k.className = "rh"; k.textContent = w.text.slice(r.letters[0], r.letters[1]);
-          k.style.color = css((KIND[r.kind] || KIND.perfect).ink); k.style.background = css(HIGHLIGHT[r.family % HIGHLIGHT.length]);
+          k.style.cssText = kindCss(KIND[r.kind] || KIND.perfect); k.style.background = css(HIGHLIGHT[r.family % HIGHLIGHT.length]);
           k.title = `${(KIND[r.kind] || KIND.perfect).label} rhyme${r.where === "internal" ? ", internal" : ""}`;
           sp.append(w.text.slice(0, r.letters[0]), k, w.text.slice(r.letters[1]));
         } else sp.textContent = w.text;
@@ -148,7 +151,7 @@ function detail() {
       const o = S.poem.words[p.a === i ? p.b : p.a];
       return `${o.text} <span class="muted">${p.kind}${p.jev != null ? ", Jev " + p.jev.toFixed(2) : ""} → ${p.strength.toFixed(2)}</span>`;
     });
-    h += `<div class="fx"><span style="background:${css(HIGHLIGHT[rr.family % HIGHLIGHT.length])};color:${css((KIND[rr.kind] || KIND.perfect).ink)}">rhymes with</span> ${mates.join(" · ")}</div>`;
+    h += `<div class="fx"><span style="background:${css(HIGHLIGHT[rr.family % HIGHLIGHT.length])};${kindCss(KIND[rr.kind] || KIND.perfect)}">rhymes with</span> ${mates.join(" · ")}</div>`;
   }
   const wts = weightsAt(r, 0.5, { threshold: S.threshold, top: S.top });
   const on = Object.entries(wts).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
@@ -182,7 +185,7 @@ for (const L of LAYERS) {
   b.onclick = () => { S.layer = L; syncLayer(); detail(); };
   $("#layers").append(b);
 }
-$("#key").innerHTML = Object.values(KIND).map((k) => `<span title="${k.note}" style="color:${css(k.ink)}">${k.label}</span>`).join(" · ")
+$("#key").innerHTML = Object.values(KIND).map((k) => `<span title="${k.note}" style="${kindCss(k)}">${k.label}</span>`).join(" · ")
   + ` <span class="muted">· highlighter colour = which words rhyme together</span>`;
 function syncLayer() { for (const b of document.querySelectorAll("#layers button")) b.classList.toggle("on", b.dataset.l === S.layer); }
 syncLayer();

@@ -168,10 +168,11 @@ export class Word {
       const adv = (g.advanceWidth || 0) * s;
       const geom = tx.glyph(ch, size);
       const pivot = new THREE.Group();
+      const skew = new THREE.Group(); skew.matrixAutoUpdate = false; pivot.add(skew);   // italic = a shear here
       const main = geom ? tx.mesh(geom) : null;
-      if (main) { main.position.set(-adv / 2, -capH * 0.45, 0); pivot.add(main); }
+      if (main) { main.position.set(-adv / 2, -capH * 0.45, 0); skew.add(main); }
       this.group.add(pivot);
-      this.letters.push({ ch, geom, pivot, main, ghosts: [], L: { i, n: chars.length, x: px, y: 0, w: adv, h: capH } });
+      this.letters.push({ ch, geom, pivot, skew, main, ghosts: [], L: { i, n: chars.length, x: px, y: 0, w: adv, h: capH } });
       px += adv; prev = g;
     }
     this.width = px; this.capH = capH;
@@ -199,6 +200,21 @@ export class Word {
     this.hl.visible = true;
   }
 
+  underline(u) {
+    if (!u) { if (this.ul) this.ul.visible = false; return; }
+    if (!this.ul) {
+      this.ul = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, depthTest: false }));
+      this.group.add(this.ul);
+    }
+    const a = this.letters[u.from], b = this.letters[Math.max(u.from, u.to - 1)];
+    if (!a || !b) return;
+    const x0 = a.L.x, x1 = b.L.x + b.L.w, th = Math.max(1, this.size * 0.018);
+    this.ul.position.set((x0 + x1) / 2, -this.capH * 0.2, 0);
+    this.ul.scale.set(x1 - x0, th, 1);
+    this.ul.material.color.setRGB(...u.color, THREE.SRGBColorSpace);
+    this.ul.material.opacity = 0.85; this.ul.visible = true;
+  }
+
   place(x, y, align = "left") {
     this.x = align === "center" ? x - this.width / 2 : align === "right" ? x - this.width : x;
     this.y = y;
@@ -206,8 +222,10 @@ export class Word {
   }
 
   /** clock {t 0..1, T seconds, e? envelope}, weights {effectId: 0..1}, opacity (whole word),
-   *  tint (optional) {from, to, color [r,g,b], amount 0..1}: recolour letters from..to-1 (e.g. the rhyming letters) */
+   *  tint (optional) {from, to, color [r,g,b], amount 0..1, bold, italic, underline}: restyle letters from..to-1
+   *  (e.g. the rhyming letters): recolour, embolden (a ring of copies), slant (a shear), underline (a rule under them) */
   update(clock, weights, opacity = 1, tint = null) {
+    this.underline(tint && tint.underline ? { from: tint.from, to: tint.to, color: tint.color } : null);
     const c = { t: clock.t, T: clock.T, e: clock.e ?? envelope(clock.t) };
     const active = Object.entries(weights).filter(([id, s]) => s > 0.001 && FX[id]);
     for (let i = 0; i < this.letters.length; i++) {
@@ -219,10 +237,14 @@ export class Word {
       l.pivot.rotation.z = a.rz * damp;
       l.pivot.scale.set(a.sx, a.sy, 1);
       let col = a.color(); const op = Math.max(0, Math.min(1, a.op)) * opacity;
-      if (tint && tint.amount > 0 && i >= tint.from && i < tint.to) {
+      const styled = tint && i >= tint.from && i < tint.to;
+      if (styled && tint.amount > 0) {
         const k = Math.min(1, tint.amount);
         col = [col[0] + (tint.color[0] - col[0]) * k, col[1] + (tint.color[1] - col[1]) * k, col[2] + (tint.color[2] - col[2]) * k];
       }
+      if (styled && tint.bold) { const r = this.size * 0.012; for (let k = 0; k < 6; k++) a.ghost(Math.cos(k * 1.047) * r, Math.sin(k * 1.047) * r, 1, 1, 1); }
+      const sh = styled && tint.italic ? 0.22 : 0;
+      l.skew.matrix.set(1, sh, 0, -sh * this.capH * 0.45 * 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
       if (l.main) { l.main.material.color.setRGB(...col, THREE.SRGBColorSpace); l.main.material.opacity = op; }
       this.ghosts(l, a, col, op);
     }
@@ -231,7 +253,7 @@ export class Word {
   ghosts(l, a, col, op) {
     if (!l.geom) return;
     while (l.ghosts.length < a.ghosts.length) {
-      const m = this.tx.mesh(l.geom); m.position.copy(l.main.position); l.pivot.add(m); l.ghosts.push(m);
+      const m = this.tx.mesh(l.geom); m.position.copy(l.main.position); l.skew.add(m); l.ghosts.push(m);
     }
     for (let k = 0; k < l.ghosts.length; k++) {
       const m = l.ghosts[k], g = a.ghosts[k];
