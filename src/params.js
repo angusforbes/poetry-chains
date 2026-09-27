@@ -13,9 +13,9 @@ export const SCHEMA = {
     fadeDuration: { v: 1000,  min: 0, max: 5000, step: 50, label: "letter fade" },
     letterStagger:{ v: 10,    min: 0, max: 200, step: 1, label: "letter stagger" },
     letterSpacing:{ v: 0,     min: -20, max: 60, step: 1, label: "letter spacing" },
-    fontSize:     { v: 72,    min: 24, max: 200, step: 1, label: "type size" },
+    fontSize:     { v: 72,    min: 24, max: 200, step: 1, label: "type size" , hidden: true },
     lineHeight:   { v: 82,    min: 20, max: 300, step: 1, label: "line height" },
-    baseline:     { v: 56,    min: 10, max: 300, step: 1, label: "baseline" },
+    baseline:     { v: 56,    min: 10, max: 300, step: 1, label: "baseline" , hidden: true },
   },
   chain: {
     seed:      { v: "",   text: true, label: "begin with the word" },
@@ -110,7 +110,7 @@ export function buildGui({ modes, current, onMode, onRestart, onPause, groups = 
     const folder = gui.addFolder(g);
     if (g !== "look" && g !== current && !(current === "all")) folder.close();
     for (const [k, f] of Object.entries(fields)) {
-      if (f.plainOnly) continue;
+      if (f.plainOnly || f.hidden) continue;
       const c = f.color ? folder.addColor(P[g], k) : f.text || f.bool ? folder.add(P[g], k) : folder.add(P[g], k, f.min, f.max, f.step);
       c.name(f.label).onChange(() => { writeUrl(); listeners.forEach((fn) => fn(g, k, P[g][k])); });
     }
