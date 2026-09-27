@@ -51,6 +51,12 @@ function stepAll() {
         let m = byKey.get(tw.target);
         if (!m) byKey.set(tw.target, (m = new Map()));
         const prev = m.get(tw.channel);
+        if (prev && prev !== tw && prev.id > tw.id) {
+          // d3 v3: a transition scheduled earlier never overrides a newer one that is already running
+          // (matters with long letter staggers: a delayed fade-in must not start after the fade-out)
+          resolved = finish(tw, "interrupted") || resolved;
+          continue;
+        }
         if (prev && prev !== tw) resolved = finish(prev, "interrupted") || resolved;
         m.set(tw.channel, tw);
       }

@@ -195,7 +195,10 @@ export class Vis {
         duration: dur, delay: i * P.look.letterStagger * this.speed, target: obj, channel: "opacity", silent: i > 0,
         init: () => { const from = obj.material.opacity; return (t) => { obj.material.opacity = from + (to - from) * t; }; },
       }));
-      return ps[0];
+      // 2015: a fade counted as done when its first letter was (fine at a 10 ms stagger). A longer stagger
+      // also waits for the extra time, so every letter finishes before the line moves on or is removed.
+      const extra = Math.max(0, P.look.letterStagger - 10) * (array.length - 1) * this.speed;
+      return extra > 0 ? Promise.all([ps[0], waitRaw(dur + extra)]) : ps[0];
     };
   }
   fadeAll(objects, to, duration) { return Promise.all(objects.map((c) => this.fadeToArray(to, duration)(c.children))); }
