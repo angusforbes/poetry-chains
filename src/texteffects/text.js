@@ -12,7 +12,7 @@ import { injectSlug } from "../slug/SlugMaterial.js";
 import { FX, envelope } from "./effects.js";
 
 const INK = [0.04, 0.04, 0.04];
-const MAX_GHOSTS = 10;
+const MAX_GHOSTS = 16;
 
 // ── accumulator: what the effects write into, per letter ──
 class Acc {
@@ -191,7 +191,6 @@ export class Word {
   update(clock, weights, opacity = 1) {
     const c = { t: clock.t, T: clock.T, e: clock.e ?? envelope(clock.t) };
     const active = Object.entries(weights).filter(([id, s]) => s > 0.001 && FX[id]);
-    this.stars = [];
     for (let i = 0; i < this.letters.length; i++) {
       const l = this.letters[i], a = this.acc[i].reset();
       for (const [id, s] of active) FX[id](l.L, Math.min(1, s), c, a);
@@ -203,7 +202,6 @@ export class Word {
       const col = a.color(), op = Math.max(0, Math.min(1, a.op)) * opacity;
       if (l.main) { l.main.material.color.setRGB(...col, THREE.SRGBColorSpace); l.main.material.opacity = op; }
       this.ghosts(l, a, col, op);
-      if (a.star) this.stars.push(a.star);
     }
   }
 
@@ -232,13 +230,6 @@ export class Word {
         lines.push(ox + a.lines[k], oy + a.lines[k + 1], a.lines[k + 5], a.lines[k + 4]);
         lines.push(ox + a.lines[k + 2], oy + a.lines[k + 3], a.lines[k + 5], a.lines[k + 4]);
       }
-    }
-    // constellation: join the stars into a figure
-    const st = this.stars || [];
-    for (let k = 1; k < st.length; k++) {
-      const [x0, y0, a0] = st[k - 1], [x1, y1, a1] = st[k];
-      lines.push(ox + x0, oy + y0, [0.25, 0.3, 0.55], 0.35 * Math.min(a0, a1));
-      lines.push(ox + x1, oy + y1, [0.25, 0.3, 0.55], 0.35 * Math.min(a0, a1));
     }
   }
 }

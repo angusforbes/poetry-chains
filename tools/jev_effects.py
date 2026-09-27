@@ -5,7 +5,7 @@
 
 Twelve valence axes (src/texteffects/catalog.js), each pole scored separately (0..4 -> 0..1), so a torn word
 (both poles high) is not the same as a neutral one (both low). Layers (one Jev request per unique unit:
-24 pole questions + 1 gate):
+28 pole questions + 1 gate):
   word    the word alone
   line    the word inside its line
   stanza  the word inside its stanza (with the poem's first line as a title)

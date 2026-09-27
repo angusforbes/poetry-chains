@@ -23,11 +23,12 @@ The [root page](https://angusforbes.github.io/poetry-chains/) is the whole piece
 ## Text effects and Jevving
 
 - **[texteffects](https://angusforbes.github.io/poetry-chains/texteffects/)**: a letter-effects library
-  (`src/texteffects/`, Slug letters like the rest of the piece) with twelve valence axes, each with an effect at
+  (`src/texteffects/`, Slug letters like the rest of the piece) with fourteen valence axes, each with an effect at
   either pole (joy Bounce ↔ sorrow Liquid, ascent Rise ↔ descent Sink, heat Burn ↔ cold Freeze, force Embolden ↔
   hush Whisper, growth Bloom ↔ decay Crumble, life Pulse ↔ death Evaporate, calm Drift ↔ fear Tremble, slow
   Stretch ↔ sudden Shatter, together Attract ↔ apart Repel, future Foreshadow ↔ memory Echo, vastness
-  Constellation ↔ closeness Focus, certainty Engrave ↔ doubt Unravel). The page lets you try any word.
+  Constellation ↔ closeness Focus, gust Gust ↔ rest Settle, percussion Beat ↔ resonance Ring, certainty Engrave ↔
+  doubt Unravel), each with its own ink colour; effects move letters, copies of letters and soft dots only. The page lets you try any word.
 - **[jevving](https://angusforbes.github.io/poetry-chains/jevving/)**: a poem read through at a tempo, each word
   performed with the effects [Jev](https://typesafe.ai) gave it. Each pole is scored separately, in three contexts
   (the word alone, in its line, in its stanza), plus a gate ("does this word matter here?") so words like "the"

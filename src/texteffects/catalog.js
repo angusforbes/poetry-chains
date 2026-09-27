@@ -1,4 +1,4 @@
-// Twelve valence axes, each with an effect at either pole. A word gets two independent scores per axis
+// Fourteen valence axes, each with an effect at either pole. A word gets two independent scores per axis
 // (how much of the + pole, how much of the − pole), so a word can be torn (both high) without looking
 // neutral (both low). Shared by the library, the pages and tools/jev_effects.py (reads the JSON block).
 // BEGIN-CATALOG
@@ -10,10 +10,12 @@ export const AXES = [
   {"id": "growth", "pos": {"name": "growth",    "q": "growing, blooming, beautiful or opening",       "effect": "bloom"},        "neg": {"name": "decay",     "q": "decaying, fragile, crumbling or turning to dust", "effect": "crumble"}},
   {"id": "life",   "pos": {"name": "life",      "q": "alive, beating, breathing or vital",            "effect": "pulse"},        "neg": {"name": "death",     "q": "dying, departing, ghostly or vanishing",      "effect": "evaporate"}},
   {"id": "calm",   "pos": {"name": "calm",      "q": "calm, idle, peaceful or drifting",              "effect": "drift"},        "neg": {"name": "fear",      "q": "fearful, anxious, awed or trembling",         "effect": "tremble"}},
-  {"id": "pace",   "pos": {"name": "slow",      "q": "slow, long, enduring or drawn out",             "effect": "stretch"},      "neg": {"name": "sudden",    "q": "sudden, violent, breaking or piercing",       "effect": "shatter"}},
+  {"id": "pace",   "pos": {"name": "slow",      "q": "slow, long, enduring or drawn out",             "effect": "stretch"},      "neg": {"name": "sudden",    "q": "sudden, snapping, cracking or breaking apart (a thing that breaks, not wind or weather)", "effect": "shatter"}},
   {"id": "bond",   "pos": {"name": "together",  "q": "about coming together, embrace or attraction",  "effect": "attract"},      "neg": {"name": "apart",     "q": "about separation, distance or being alone",   "effect": "repel"}},
   {"id": "time",   "pos": {"name": "future",    "q": "about the future, anticipation or what is coming", "effect": "foreshadow"}, "neg": {"name": "memory", "q": "about memory, the past, repetition or echoes", "effect": "echo"}},
   {"id": "scale",  "pos": {"name": "vastness",  "q": "vast, cosmic, infinite or eternal",             "effect": "constellation"}, "neg": {"name": "closeness", "q": "tiny, close, intimate or minute",            "effect": "focus"}},
+  {"id": "wind",   "pos": {"name": "gust",      "q": "windblown, gusting, stormy, blowing or tumbling", "effect": "gust"},       "neg": {"name": "rest",      "q": "sheltered, settled, at rest or laid down",    "effect": "settle"}},
+  {"id": "sound",  "pos": {"name": "percussion", "q": "a percussive, rhythmic sound: beating, treading, knocking, stamping", "effect": "beat"}, "neg": {"name": "resonance", "q": "a sustained, ringing or resonant sound: tolling, humming, singing", "effect": "ring"}},
   {"id": "belief", "pos": {"name": "certainty", "q": "certain, sure, settled or true",                "effect": "engrave"},      "neg": {"name": "doubt",     "q": "doubtful, uncertain, loosening or coming undone", "effect": "unravel"}}
 ];
 // END-CATALOG
@@ -27,7 +29,7 @@ export const EXAMPLES = {
   bounce: "glad", liquid: "tears", rise: "soar", sink: "grave", burn: "fire", freeze: "chill",
   embolden: "Truth", whisper: "hush", bloom: "rose", crumble: "dust", pulse: "heart", evaporate: "soul",
   drift: "float", tremble: "dread", stretch: "forever", shatter: "broke", attract: "together", repel: "alone",
-  foreshadow: "tomorrow", echo: "remember", constellation: "Eternity", focus: "Gossamer", engrave: "certain", unravel: "undone",
+  foreshadow: "tomorrow", echo: "remember", gust: "Gale", settle: "rest", beat: "treading", ring: "toll", constellation: "Eternity", focus: "Gossamer", engrave: "certain", unravel: "undone",
 };
 
 /** From per-pole scores {axis: {pos, neg}} (0..1) and a gate (0..1): direction, ambivalence and effect weights. */
