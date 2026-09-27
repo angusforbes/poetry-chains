@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Jevving · Poetry Chains</title>
+<style>
+  body #stage { right: 500px; bottom: 34vh; }
+  .panel.poem { left: 0; right: 500px; bottom: 0; height: 34vh; overflow-y: auto; border-top: 1px solid var(--rule); padding: 14px 28px; box-sizing: border-box; columns: 2 280px; column-gap: 40px; font-size: 16px; line-height: 1.5; }
+  .stanza { break-inside: avoid; margin-bottom: 14px; }
+  .w { cursor: pointer; border-bottom: 2px solid rgba(17,17,17, calc(var(--g) * 0.6)); }
+  .w.cur { background: #f1ede4; }
+  .w.sel { outline: 1px solid var(--ink-3); }
+  .panel.detail { top: 0; right: 0; bottom: 0; width: 500px; overflow-y: auto; border-left: 1px solid var(--rule); padding: 16px 18px; box-sizing: border-box; }
+  .ctl { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin-bottom: 14px; }
+  #layers button { padding: 2px 8px; }
+  .dw { font-size: 34px; line-height: 1.1; } .dl { font-style: italic; margin: 4px 0 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { font-weight: normal; color: var(--ink-3); text-align: center; font-size: 12px; } th.on { color: var(--ink); text-decoration: underline; }
+  td { padding: 2px 3px; white-space: nowrap; } td:first-child { width: 150px; }
+  tr.gate td { padding-bottom: 8px; } td em { font-style: normal; color: var(--ink-3); font-size: 11px; margin-left: 3px; }
+  .nn { color: var(--neg); } .pn { color: var(--pos); }
+  .torn { font-weight: normal; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; margin-left: 6px; color: #8a6d1f; }
+  .bar { display: inline-flex; width: 64px; height: 7px; position: relative; vertical-align: middle; background: linear-gradient(to right, transparent 49.5%, var(--rule) 49.5%, var(--rule) 50.5%, transparent 50.5%); }
+  .bar i { position: absolute; top: 0; bottom: 0; } .bar .n { right: 50%; background: var(--neg); } .bar .p { left: 50%; background: var(--pos); }
+  .bar.g { width: 40px; background: #f1ede4; } .bar.g .p { left: 0; background: var(--ink-2); width: calc(var(--x) * 1%); }
+  .fx { margin-top: 12px; line-height: 1.6; } .note { font-size: 12px; margin-top: 16px; line-height: 1.5; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div class="title"><b>Jevving</b> · Jev reads the poem<a href="../texteffects/">← text effects</a></div>
+<div class="panel poem" id="poem"></div>
+<div class="panel detail">
+  <div class="ctl"><select id="poemsel"></select><button id="play">pause</button>
+    <span id="layers"></span></div>
+  <div class="ctl"><span class="muted">tempo</span><input id="wpm" type="range" min="20" max="160" step="1" value="70" style="width:110px"><span id="wpmv" class="muted">70 words/min</span>
+    <span class="muted">threshold</span><input id="thr" type="range" min="0" max="0.6" step="0.01" value="0.18" style="width:80px"><span id="thrv" class="muted">0.18</span></div>
+  <div id="detail"></div>
+  <div class="note muted">Each axis has two poles scored separately by Jev (jev-latest), in three contexts: the word alone, in its line, and in its stanza; “combined” mixes them 0.2 / 0.4 / 0.4. Bars grow left for the <span class="nn">− pole</span> and right for the <span class="pn">+ pole</span>, scaled by the gate (does the word matter here?); both sides filled means torn, and the word flickers between the two effects. Click a word to inspect it and jump there; space pauses, ← → step.</div>
+</div>
+<script type="module" src="/src/texteffects/jevving.js"></script>
+</body>
+</html>

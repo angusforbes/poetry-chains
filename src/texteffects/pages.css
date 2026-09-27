@@ -1,0 +1,27 @@
+/* The text-effects pages: paper, ink, hairlines, Open Baskerville (as the controls of the piece). */
+:root {
+  --ink: #111; --ink-2: #555; --ink-3: #9a958b; --rule: #ddd8cd;
+  --paper: rgba(253, 252, 249, 0.94); --pos: #3f6f8f; --neg: #9a4b3f;
+  --serif: "Open Baskerville", "Iowan Old Style", Georgia, serif;
+}
+html, body { margin: 0; height: 100%; background: #fff; color: var(--ink); font-family: var(--serif); }
+body { overflow: hidden; }
+#stage { position: absolute; inset: 0; }
+#stage canvas { display: block; }
+.title { position: absolute; top: 16px; left: 20px; font-size: 13px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-3); }
+.title b { color: var(--ink); font-weight: normal; }
+.title a { color: var(--ink-3); text-decoration: none; border-bottom: 1px solid var(--rule); margin-left: 14px; }
+.panel { position: absolute; background: var(--paper); backdrop-filter: blur(6px); font-size: 13.5px; }
+input[type=text] { font: 22px var(--serif); border: none; border-bottom: 1px solid var(--rule); background: transparent; color: var(--ink); outline: none; width: 100%; padding: 2px 0; }
+input[type=range] { -webkit-appearance: none; appearance: none; background: transparent; height: 18px; margin: 0; }
+input[type=range]::-webkit-slider-runnable-track { height: 1px; background: var(--ink-3); }
+input[type=range]::-moz-range-track { height: 1px; background: var(--ink-3); }
+input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 2px; height: 14px; margin-top: -7px; background: var(--ink); border: none; }
+input[type=range]::-moz-range-thumb { width: 2px; height: 14px; background: var(--ink); border: none; border-radius: 0; }
+button, select { font: 13.5px var(--serif); background: transparent; border: 1px solid var(--rule); color: var(--ink); padding: 3px 10px; cursor: pointer; }
+button:hover, select:hover { border-color: var(--ink-3); }
+button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.muted { color: var(--ink-3); }
+.pole { cursor: pointer; white-space: nowrap; }
+.pole:hover { color: var(--ink); text-decoration: underline; text-decoration-color: var(--rule); }
+.pole small { color: var(--ink-3); font-style: italic; }

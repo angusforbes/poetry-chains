@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Text effects · Poetry Chains</title>
+<style>
+  .panel.controls { left: 20px; bottom: 18px; width: min(560px, calc(100vw - 40px)); padding: 12px 16px 14px; border-top: 1px solid var(--rule); }
+  .axis { display: grid; grid-template-columns: 1fr 150px 1fr 46px; gap: 10px; align-items: center; line-height: 1.55; }
+  .axis .neg { text-align: right; } .axis .both { padding: 0 6px; font-size: 12px; }
+  .row { display: flex; gap: 12px; align-items: center; margin-bottom: 10px; }
+  #now { position: absolute; left: 0; right: 0; top: 18%; text-align: center; font-style: italic; color: var(--ink-3); font-size: 15px; letter-spacing: 0.03em; pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div class="title"><b>Text effects</b> · twelve axes, twenty-four effects<a href="../jevving/">Jevving →</a></div>
+<div id="now"></div>
+<div class="panel controls">
+  <div class="row"><input id="word" type="text" spellcheck="false" aria-label="word"></div>
+  <div id="axes"></div>
+  <div class="row" style="margin: 10px 0 0">
+    <button id="tour">tour all 24</button><button id="reset">still</button>
+    <span class="muted">each performance</span><input id="dur" type="range" min="1" max="8" step="0.1" value="3.2" style="width:120px"><span id="durv" class="muted">3.2 s</span>
+  </div>
+  <div class="muted" style="margin-top:8px;font-size:12px">Click a pole name to see its effect on an example word; drag toward either side; “both” makes the axis torn.</div>
+</div>
+<script type="module" src="/src/texteffects/demo.js"></script>
+</body>
+</html>

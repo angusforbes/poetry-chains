@@ -20,6 +20,20 @@ Each plays one animation and stops; reload for a new one.
 The [root page](https://angusforbes.github.io/poetry-chains/) is the whole piece with controls
 (`#chain`, `#lines`, `#colocation`, `#howe`, `#intro` pick one).
 
+## Text effects and Jevving
+
+- **[texteffects](https://angusforbes.github.io/poetry-chains/texteffects/)**: a letter-effects library
+  (`src/texteffects/`, Slug letters like the rest of the piece) with twelve valence axes, each with an effect at
+  either pole (joy Bounce ↔ sorrow Liquid, ascent Rise ↔ descent Sink, heat Burn ↔ cold Freeze, force Embolden ↔
+  hush Whisper, growth Bloom ↔ decay Crumble, life Pulse ↔ death Evaporate, calm Drift ↔ fear Tremble, slow
+  Stretch ↔ sudden Shatter, together Attract ↔ apart Repel, future Foreshadow ↔ memory Echo, vastness
+  Constellation ↔ closeness Focus, certainty Engrave ↔ doubt Unravel). The page lets you try any word.
+- **[jevving](https://angusforbes.github.io/poetry-chains/jevving/)**: a poem read through at a tempo, each word
+  performed with the effects [Jev](https://typesafe.ai) gave it. Each pole is scored separately, in three contexts
+  (the word alone, in its line, in its stanza), plus a gate ("does this word matter here?") so words like "the"
+  stay still; a word that is high on both poles is torn and flickers between the two effects. Scores are
+  precomputed by `tools/jev_effects.py <poem numbers>` into `public/jevving/` (needs a TypeSafe key; cached).
+
 ## Controls (the /controls pages)
 
 - **Parameter panel** (top right): every number the 2015 piece hard-coded, with the 2015 value as default.
