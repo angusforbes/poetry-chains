@@ -173,6 +173,11 @@ def analyse(num):
         return x
     for p in pairs:
         if p["strength"] >= FAMILY_AT: parent[find(p["a"])] = find(p["b"])
+    # the same rhyme sound in different stanzas is one family (one highlighter): join perfect matches across groups
+    members = sorted({x for p in pairs if p["strength"] >= FAMILY_AT for x in (p["a"], p["b"])})
+    for ii, x in enumerate(members):
+        for y in members[ii + 1:]:
+            if find(x) != find(y) and compare(words[x]["text"], words[y]["text"])[0] >= 1.0: parent[find(x)] = find(y)
     fams, fam_of = {}, {}
     for p in pairs:
         if p["strength"] < FAMILY_AT: continue
@@ -181,6 +186,10 @@ def analyse(num):
     order = sorted(fams, key=lambda r: min(fams[r]))
     for fi, r in enumerate(order):
         for x in fams[r]: fam_of[x] = fi
+    def best_kind(x):
+        ps = [p for p in pairs if x in (p["a"], p["b"]) and p["strength"] >= FAMILY_AT]
+        p = max(ps, key=lambda p: p["strength"])
+        return {"kind": p["kind"], "where": p["where"], "strength": p["strength"]}
     marks = {}
     for x in fam_of:
         pr, approx = prons(words[x]["text"])
@@ -196,7 +205,7 @@ def analyse(num):
     d["rhymes"] = {
         "pairs": [p for p in pairs if p["strength"] >= 0.35],
         "families": [sorted(fams[r]) for r in order],
-        "word": {str(x): {"family": fam_of[x], "letters": marks[x]} for x in fam_of},
+        "word": {str(x): {"family": fam_of[x], "letters": marks[x], **best_kind(x)} for x in fam_of},
         "scheme": scheme,
     }
     json.dump(d, open(path, "w"), ensure_ascii=False, separators=(",", ":"))

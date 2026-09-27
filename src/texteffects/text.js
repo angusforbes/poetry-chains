@@ -181,6 +181,24 @@ export class Word {
     this.update({ t: 0, T: 0 }, {});
   }
 
+  /** a highlighter stroke behind letters from..to-1 (at their rest positions, like ink on the page); null removes it */
+  highlight(h) {
+    if (!h) { if (this.hl) this.hl.visible = false; return; }
+    if (!this.hl) {
+      const m = new THREE.MeshBasicMaterial({ transparent: true, depthWrite: false, depthTest: false });
+      this.hl = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), m);
+      this.hl.renderOrder = -1; this.group.add(this.hl);
+    }
+    const a = this.letters[h.from], b = this.letters[Math.max(h.from, h.to - 1)];
+    if (!a || !b) return;
+    const x0 = a.L.x - this.size * 0.04, x1 = b.L.x + b.L.w + this.size * 0.04, y0 = -this.capH * 0.32, y1 = this.capH * 1.12;
+    this.hl.position.set((x0 + x1) / 2, (y0 + y1) / 2, -1);
+    this.hl.scale.set(x1 - x0, y1 - y0, 1);
+    this.hl.material.color.setRGB(...h.color, THREE.SRGBColorSpace);
+    this.hl.material.opacity = h.alpha;
+    this.hl.visible = true;
+  }
+
   place(x, y, align = "left") {
     this.x = align === "center" ? x - this.width / 2 : align === "right" ? x - this.width : x;
     this.y = y;
