@@ -37,26 +37,30 @@ const lastWord = (m, d) => {
   if (m === "lines" || m === "colocation") return d[d.length - 1].word;
 };
 
-let run = 0, doneAt = null;
+// How many animations a page plays:
+//   controls pages: exactly PRELOAD, measured up front, so the timeline has a fixed end
+//   plain pages: one (Howe: P.howe.runs), or forever for the whole piece
+const PRELOAD = 5;
+let run = 0, doneAt = null, marks = [];
 async function play(m) {
   const my = ++run, alive = () => my === run;
   doneAt = null;
+  marks = [];
+  const limit = CFG.controls ? PRELOAD : CFG.once ? (m === "howe" ? P.howe.runs : 1) : Infinity;
+  let count = 0;
+  const one = async (k, w) => { marks.push({ t: now(), mode: k }); const d = data(k, w); await vis[k].start(d); count++; return d; };
   try {
-    if (CFG.once) {
-      const runs = m === "howe" ? P.howe.runs : 1;           // Howe is short: its page plays several scatters in a row
-      for (let i = 0; i < runs && alive(); i++) await vis[m].start(data(m));
-      if (alive()) doneAt = now();
-      return;
+    if (m !== "all") { while (alive() && count < limit) await one(m); }
+    else {
+      const order = () => [...(P.all.intro ? ["intro"] : []), "chain", "lines", "colocation", ...Array(P.all.howeRepeats).fill("howe")];
+      let seq = order(), i = 0, word = null;
+      while (alive() && count < limit) {
+        if (i >= seq.length) { seq = order(); i = 0; }
+        const k = seq[i++], d = await one(k, word);
+        word = d ? lastWord(k, d) || word : word;
+      }
     }
-    if (m !== "all") { while (alive()) await vis[m].start(data(m)); return; }
-    const order = () => [...(P.all.intro ? ["intro"] : []), "chain", "lines", "colocation", ...Array(P.all.howeRepeats).fill("howe")];
-    let seq = order(), i = 0, word = null;
-    while (alive()) {
-      if (i >= seq.length) { seq = order(); i = 0; }
-      const k = seq[i++], d = data(k, word);
-      await vis[k].start(d);
-      word = d ? lastWord(k, d) || word : word;
-    }
+    if (alive() && count >= limit) doneAt = now();
   } catch (e) { console.error(e); }
 }
 
@@ -80,6 +84,7 @@ async function measure(s) {
   rebuild(s);
   for (let t = 60000; doneAt === null && t < 3.6e6; t += 60000) await advanceTo(t);
   const d = doneAt;
+  T.marks = marks.map((x) => ({ ...x }));               // where each of the animations begins
   rebuild(s);
   stage.hold = false;
   T.seeking = false;
@@ -89,7 +94,7 @@ async function measure(s) {
 
 /* ── transport ─────────────────────────────────────────────────────────── */
 const q0 = new URLSearchParams(location.search);
-const T = { paused: false, rate: Number(q0.get("rate")) || 1, seeking: false, furthest: 0, target: null, duration: null };
+const T = { paused: false, rate: Number(q0.get("rate")) || 1, seeking: false, furthest: 0, target: null, duration: null, marks: [] };
 let last = performance.now();
 async function drive() {
   for (;;) {
@@ -133,7 +138,13 @@ let dragging = false;
 function paint() {
   const t = T.target ?? now();
   if (!dragging) { $("time").max = span(); $("time").value = t; }
+  const k = T.marks.filter((x) => x.t <= t + 1).length;
   $("tlabel").textContent = `${fmt(t)} / ${fmt(T.duration ?? T.furthest)}`;
+  $("which").textContent = T.marks.length ? `${T.marks[Math.max(0, k - 1)].mode} · ${Math.max(1, k)} of ${T.marks.length}` : "";
+  if ($("marks").dataset.v !== String(T.duration)) {
+    $("marks").dataset.v = String(T.duration);
+    $("marks").innerHTML = T.duration ? T.marks.map((x, i) => `<i style="left:${(100 * x.t) / T.duration}%" title="${i + 1}. ${x.mode}"></i>`).join("") : "";
+  }
   $("time").style.setProperty("--done", `${(100 * t) / span()}%`);
   $("rate").style.setProperty("--done", `${(100 * (Math.log2(T.rate) + 4)) / 9}%`);
   $("play").textContent = T.paused ? "play" : "pause";
@@ -205,8 +216,13 @@ async function boot() {
     const q = new URLSearchParams(location.search); q.delete("seed");
     history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "") + location.hash);
     const s = (Math.random() * 2 ** 31) | 0;
-    if (CFG.once) { T.paused = false; T.duration = await measure(s); document.body.classList.remove("paused-ui"); }
-    else rebuild(s);
+    T.paused = false; document.body.classList.remove("paused-ui");
+    T.duration = await measure(s);
+  };
+  let rt;
+  const remeasure = () => {
+    clearTimeout(rt);
+    rt = setTimeout(async () => { const t = now(); T.duration = await measure(seed); seek(Math.min(t, T.duration)); }, 350);
   };
   const linkHere = () => {
     const q = new URLSearchParams(location.search); q.set("seed", seed);
@@ -221,12 +237,11 @@ async function boot() {
   });
   onChange((g, k) => {
     if (g === "look" && ["textColor", "background", "fov"].includes(k)) stage.applyLook();
-    else if (CFG.once) T.duration = null;                // the length is no longer known exactly; "new animation" re-measures
-    if (g === "look" && ["fontSize", "letterSpacing", "lineHeight", "baseline"].includes(k)) fresh();
+    else remeasure();                                    // same five animations with the new setting; stay at the same moment
   });
   if (!CFG.mode) addEventListener("hashchange", fresh);
   transport();
-  if (CFG.once) T.duration = await measure(s0); else rebuild(s0);
+  T.duration = await measure(s0);
   drive();
 }
 boot();

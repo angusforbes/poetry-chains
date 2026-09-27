@@ -156,7 +156,12 @@ body.seeking #seekmsg { display: inline; }
 /* hairline sliders with an ink dot */
 #transport input[type="range"] { appearance: none; -webkit-appearance: none; background: transparent; height: 18px; margin: 0; cursor: pointer; }
 #rate { width: 130px; }
-#time { flex: 1; min-width: 200px; }
+#timewrap { flex: 1; min-width: 200px; position: relative; display: flex; align-items: center; }
+#time { width: 100%; }
+#marks { position: absolute; left: 4px; right: 4px; top: 50%; height: 0; pointer-events: none; }
+#marks i { position: absolute; top: -8px; width: 1px; height: 7px; background: var(--ink-3); }
+#marks i:first-child { display: none; }
+#which { font-style: italic; color: var(--ink-3); white-space: nowrap; min-width: 110px; text-align: right; }
 #transport input[type="range"]::-webkit-slider-runnable-track {
   height: 1px;
   background: linear-gradient(90deg, var(--ink) var(--done, 0%), var(--rule) var(--done, 0%));

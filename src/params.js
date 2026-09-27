@@ -46,7 +46,7 @@ export const SCHEMA = {
     hold:          { v: 3000, min: 0, max: 20000, step: 250, label: "linger" },
   },
   howe: {
-    runs:         { v: 5,    min: 1, max: 20, step: 1, label: "scatters" },
+    runs:         { v: 5,    min: 1, max: 20, step: 1, label: "scatters", plainOnly: true },   // plain Howe page only
     minLines:     { v: 8,    min: 1, max: 40, step: 1, label: "fewest lines" },
     maxLines:     { v: 18,   min: 1, max: 60, step: 1, label: "most lines" },
     newGroup:     { v: 0.2,  min: 0, max: 1, step: 0.01, label: "new-group chance" },
@@ -101,6 +101,7 @@ export function buildGui({ modes, current, onMode, onRestart, onPause, groups = 
     const folder = gui.addFolder(g);
     if (g !== "look" && g !== current && !(current === "all")) folder.close();
     for (const [k, f] of Object.entries(fields)) {
+      if (f.plainOnly) continue;
       const c = f.color ? folder.addColor(P[g], k) : f.text || f.bool ? folder.add(P[g], k) : folder.add(P[g], k, f.min, f.max, f.step);
       c.name(f.label).onChange(() => { writeUrl(); listeners.forEach((fn) => fn(g, k, P[g][k])); });
     }

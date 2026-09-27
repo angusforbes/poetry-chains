@@ -10,7 +10,8 @@
 <div id="transport">
   <button id="play" title="space">pause</button>
   <label title="[ and ] halve and double · 1 resets · double-click resets">speed <input id="rate" type="range" min="-4" max="5" step="0.01" value="0"><span id="rlabel">1×</span></label>
-  <input id="time" type="range" min="0" max="300000" step="10" value="0" title="drag to move through it · ← → five seconds · shift thirty · Home to the start">
+  <div id="timewrap"><input id="time" type="range" min="0" max="300000" step="10" value="0" title="drag to move through it · ← → five seconds · shift thirty · Home to the start"><div id="marks"></div></div>
+  <span id="which"></span>
   <span id="tlabel">0:00 / 0:00</span>
   <span id="seekmsg">finding the place…</span>
 </div>
