@@ -1,4 +1,5 @@
 // Port of HoweVis.coffee (after Susan Howe): lines scattered in small rotated groups, the camera
+import { rand } from "../rng.js";
 // widening to hold them all.
 import * as THREE from "three";
 import { Vis } from "./Stage.js";
@@ -10,13 +11,13 @@ export class HoweVis extends Vis {
     const parent = new THREE.Object3D();
     parent.scale.multiplyScalar(this.scaleText);
     this.scene.add(parent);
-    const rot = () => Math.random() * THREE.MathUtils.degToRad(H.rotation);
-    let x = Math.random() * H.spreadX, y = Math.random() * H.spreadX, rz = rot(), lh = Math.random() * H.lineStep, n = 0;
+    const rot = () => rand() * THREE.MathUtils.degToRad(H.rotation);
+    let x = rand() * H.spreadX, y = rand() * H.spreadX, rz = rot(), lh = rand() * H.lineStep, n = 0;
     const lines = [];
     for (const line of text) {
       const o = this.getLineObject(line);
-      if (Math.random() > 1 - H.newGroup || n > H.groupLines) {
-        x = Math.random() * H.spreadX; y = Math.random() * H.spreadY; rz = rot(); lh = Math.random() * H.lineStep; n = 0;
+      if (rand() > 1 - H.newGroup || n > H.groupLines) {
+        x = rand() * H.spreadX; y = rand() * H.spreadY; rz = rot(); lh = rand() * H.lineStep; n = 0;
       } else y -= lh;
       o.rotateZ(rz); o.translateX(x); o.translateY(y);
       n++;

@@ -1,9 +1,10 @@
 // Port of LinesVis.coffee: a line, then every other line sharing one of its words, stacked and aligned
+import { rand } from "../rng.js";
 // on that word; one of them becomes the next line, and so on down the tree.
 import { Vis } from "./Stage.js";
 import { P } from "../params.js";
 
-const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 
 export class LinesVis extends Vis {
   async start(data) {

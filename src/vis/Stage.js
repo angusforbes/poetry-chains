@@ -35,7 +35,8 @@ export class Stage {
     gen.fullRange = true;                            // default is ASCII only: no em dashes or curly quotes
     this.slug = await gen.generateFromBuffer(buf.slice(0));
     this.glyphs = new Map();
-    this.renderer.setAnimationLoop(() => this.renderer.render(this.scene, this.camera));
+    this.hold = false;                                // true while seeking: nothing half-built gets drawn
+    this.renderer.setAnimationLoop(() => { if (!this.hold) this.renderer.render(this.scene, this.camera); });
   }
 
   applyLook() {
@@ -166,11 +167,12 @@ export class Vis {
     return (array) => {
       if (!array.length) return Promise.resolve();
       const dur = (duration ?? 1000) * (P.look.fadeDuration / 1000) * this.speed;   // fadeDuration rescales the original 1000/2000 ms fades
+      // only the first letter carries a promise: it always finishes first, and d3's each("end") resolved there
       const ps = array.map((obj, i) => tween({
-        duration: dur, delay: i * P.look.letterStagger * this.speed, target: obj, channel: "opacity",
+        duration: dur, delay: i * P.look.letterStagger * this.speed, target: obj, channel: "opacity", silent: i > 0,
         init: () => { const from = obj.material.opacity; return (t) => { obj.material.opacity = from + (to - from) * t; }; },
       }));
-      return Promise.race(ps);
+      return ps[0];
     };
   }
   fadeAll(objects, to, duration) { return Promise.all(objects.map((c) => this.fadeToArray(to, duration)(c.children))); }

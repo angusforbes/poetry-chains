@@ -1,65 +1,95 @@
-// A tiny transition engine standing in for the d3 v3 transitions the original used.
-// - cubic-in-out easing (d3 v3's default)
-// - "from" values are read when a tween starts, after its delay (like d3's tween factories)
-// - a new tween on the same target+channel interrupts the old one (like d3 v3 transitions on one node)
-// - one shared clock, so everything can pause, resume and be cancelled together
+// The piece's clock and transitions (standing in for the d3 v3 transitions of the original).
+//
+// Time is virtual: `clock` advances by (real time × rate), and can be paused, sped up, or jumped.
+// It advances event by event: the clock stops at every moment a tween starts or ends, steps all tweens,
+// and lets any resolved promises run (their continuations may schedule new tweens) before moving on.
+// Normal playback and seeking use the same stepping, so a replay with the same seed makes the same
+// decisions in the same order: that is what makes scrubbing possible.
+//
+// d3 v3 behaviour kept: cubic-in-out easing; "from" values are read when a tween starts (after its
+// delay); a new tween on the same target+channel interrupts the old one.
 
 export const cubicInOut = (t) => (t <= 0 ? 0 : t >= 1 ? 1 : t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
-export const CANCELLED = Symbol("cancelled");
 
-const active = new Set();
-const byKey = new WeakMap();                  // target -> Map(channel -> tween)
-let clock = 0, last = performance.now(), paused = false;
+let active = new Set();
+let byKey = new WeakMap();                   // target -> Map(channel -> tween)
+let clock = 0;
+let seq = 0;
 
-export const isPaused = () => paused;
-export function setPaused(p) { paused = p; }
 export const now = () => clock;
 
-function tick(t) {
-  const dt = Math.min(100, t - last);          // a background tab should not jump the piece forward
-  last = t;
-  if (!paused) clock += dt;
-  for (const tw of [...active]) step(tw);
-  requestAnimationFrame(tick);
+/** tween({ duration, delay, init: () => (t) => {...}, target, channel, silent }) → Promise (none if silent) */
+export function tween({ duration = 250, delay = 0, init = null, target = null, channel = null, ease = cubicInOut, silent = false }) {
+  const tw = { id: seq++, start: clock + Math.max(0, delay), duration: Math.max(0, duration), init, target, channel, ease, started: false, resolve: null };
+  active.add(tw);
+  if (silent) return undefined;
+  return new Promise((resolve) => { tw.resolve = resolve; });
 }
-requestAnimationFrame(tick);
-
-function step(tw) {
-  if (clock < tw.start) return;
-  if (!tw.started) {
-    tw.started = true;
-    if (tw.target && tw.channel) {
-      let m = byKey.get(tw.target);
-      if (!m) byKey.set(tw.target, (m = new Map()));
-      const prev = m.get(tw.channel);
-      if (prev && prev !== tw) finish(prev, true);
-      m.set(tw.channel, tw);
-    }
-    tw.update = tw.init ? tw.init() : null;
-  }
-  const t = tw.duration > 0 ? Math.min(1, (clock - tw.start) / tw.duration) : 1;
-  if (tw.update) tw.update(tw.ease(t));
-  if (t >= 1) finish(tw, false);
-}
-
-function finish(tw, interrupted) {
-  if (!active.has(tw)) return;
-  active.delete(tw);
-  const m = tw.target && byKey.get(tw.target);
-  if (m && m.get(tw.channel) === tw) m.delete(tw.channel);
-  tw.resolve(interrupted ? "interrupted" : "end");
-}
-
-/** tween({ duration, delay, init: () => (t) => {...}, target, channel }) → Promise that resolves at the end */
-export function tween({ duration = 250, delay = 0, init = null, target = null, channel = null, ease = cubicInOut }) {
-  return new Promise((resolve, reject) => {
-    active.add({ start: clock + Math.max(0, delay), duration: Math.max(0, duration), init, target, channel, ease, resolve, reject, started: false });
-  });
-}
-
 export const wait = (ms) => tween({ duration: ms });
 
-/** stop everything: pending promises reject with CANCELLED so running sequences unwind */
-export function cancelAll() {
-  for (const tw of [...active]) { active.delete(tw); tw.reject(CANCELLED); }
+/** forget every pending transition; their promises never settle, so old sequences simply stop */
+export function cancelAll() { active = new Set(); byKey = new WeakMap(); }
+export function resetClock(t = 0) { cancelAll(); clock = t; }
+
+function finish(tw, how) {
+  if (!active.delete(tw)) return false;
+  const m = tw.target && byKey.get(tw.target);
+  if (m && m.get(tw.channel) === tw) m.delete(tw.channel);
+  if (tw.resolve) { tw.resolve(how); return true; }
+  return false;
 }
+
+/** step every tween to the current clock; returns true if any promise was resolved */
+function stepAll() {
+  let resolved = false;
+  for (const tw of [...active]) {
+    if (!active.has(tw) || clock < tw.start) continue;
+    if (!tw.started) {
+      tw.started = true;
+      if (tw.target && tw.channel) {
+        let m = byKey.get(tw.target);
+        if (!m) byKey.set(tw.target, (m = new Map()));
+        const prev = m.get(tw.channel);
+        if (prev && prev !== tw) resolved = finish(prev, "interrupted") || resolved;
+        m.set(tw.channel, tw);
+      }
+      tw.update = tw.init ? tw.init() : null;
+    }
+    const t = tw.duration > 0 ? Math.min(1, (clock - tw.start) / tw.duration) : 1;
+    if (tw.update) tw.update(tw.ease(t));
+    if (t >= 1) resolved = finish(tw, "end") || resolved;
+  }
+  return resolved;
+}
+
+function nextEvent() {
+  let n = Infinity;
+  for (const tw of active) { const e = tw.started ? tw.start + tw.duration : tw.start; if (e < n) n = e; }
+  return n;
+}
+
+// a macrotask boundary: every pending promise continuation has run by the time it fires
+const mc = new MessageChannel();
+const queue = [];
+mc.port1.onmessage = () => queue.shift()();
+const settle = () => new Promise((r) => { queue.push(r); mc.port2.postMessage(0); });
+
+let busy = null;
+/** advance the clock to T, visiting every event on the way (serialised: one advance at a time) */
+export function advanceTo(T) {
+  const run = async () => {
+    // every step either starts or finishes at least one tween, so this always makes progress;
+    // tweens created while stepping (e.g. inside an init) that are due now are simply picked up next time round
+    for (let guard = 0; guard < 1e7; guard++) {
+      const n = nextEvent();
+      if (n > T) break;
+      if (n > clock) clock = n;
+      if (stepAll()) await settle();
+    }
+    if (T > clock) clock = T;
+    if (stepAll()) await settle();
+  };
+  busy = (busy || Promise.resolve()).then(run);
+  return busy;
+}
+export const idle = () => busy || Promise.resolve();

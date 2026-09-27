@@ -94,7 +94,6 @@ export function buildGui({ modes, current, onMode, onRestart, onPause }) {
   const ctl = { mode: current, restart: onRestart, pause: () => onPause(), reset: () => { history.replaceState(null, "", location.pathname + location.hash); location.reload(); } };
   gui.add(ctl, "mode", modes).name("mode").onChange(onMode);
   gui.add(ctl, "restart").name("restart now (↻)");
-  gui.add(ctl, "pause").name("pause / resume (space)");
   gui.add(ctl, "reset").name("reset all to 2015 defaults");
   for (const [g, fields] of Object.entries(SCHEMA)) {
     const folder = gui.addFolder(g);
@@ -107,7 +106,6 @@ export function buildGui({ modes, current, onMode, onRestart, onPause }) {
   addEventListener("keydown", (e) => {
     if (e.target.tagName === "INPUT") return;
     if (e.key === "h") gui.show(gui._hidden);
-    if (e.key === " ") { e.preventDefault(); onPause(); }
     if (e.key === "r") onRestart();
   });
   gui.close();

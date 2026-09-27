@@ -1,4 +1,5 @@
 // Port of ColocationVis.coffee: a word, and around it on a ring the words that share its lines,
+import { rand } from "../rng.js";
 // sized by how often; one of them becomes the next centre.
 import * as THREE from "three";
 import { Vis } from "./Stage.js";
@@ -51,7 +52,7 @@ export class ColocationVis extends Vis {
       const endSize = o.scale.clone(), startSize = new THREE.Vector3(0.01, 0.01, 0.01);
       o.position.copy(startPos); o.scale.copy(startSize);
       tween({
-        duration: P.colocation.moveDuration, delay: Math.random() * delay, target: child, channel: "move",
+        duration: P.colocation.moveDuration, delay: rand() * delay, target: child, channel: "move", silent: true,
         init: () => { this.fadeToArray(1, 3000)(o.children); return (t) => { o.position.lerpVectors(startPos, endPos, t); o.scale.lerpVectors(startSize, endSize, t); }; },
       });
     }

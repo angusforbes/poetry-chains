@@ -1,13 +1,14 @@
 // Port of the PoetryChains Java backend (Parser, ChainMaker, NetMaker, LineMaker, HoweMaker).
+import { rand } from "../rng.js";
 // Behaviour follows the Java closely, including its randomness: behaviorism's Utils.randomInt(min, max)
 // is Math.round(min + random * (max - min)), so both ends are inclusive at half weight.
 
-export const randomInt = (min, max) => Math.round(min + Math.random() * (max - min));
+export const randomInt = (min, max) => Math.round(min + rand() * (max - min));
 export const randomElement = (list, lo = 0, hi = list.length - 1) =>
   list[Math.max(0, Math.min(list.length - 1, randomInt(lo, Math.min(hi, list.length - 1))))];
 
 function shuffle(a) {
-  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   return a;
 }
 function randomElements(collection, n) {
@@ -78,7 +79,7 @@ export class Corpus {
   usable(w) { return w && w.word !== ""; }
   randomWord() {
     const all = [...this.words.values()];
-    let w; do { w = all[Math.floor(Math.random() * all.length)]; } while (!this.usable(w));
+    let w; do { w = all[Math.floor(rand() * all.length)]; } while (!this.usable(w));
     return w;
   }
 
@@ -116,8 +117,8 @@ export class Corpus {
 
   search(depth, maxDepth, start, target, path, connectors, seenWords, seenLines) {
     if (depth > maxDepth) return false;
-    shuffle(start.lines);
-    for (const line of start.lines) {
+    // the Java shuffled start.lines in place; a copy keeps the corpus unchanged, so a seed replays exactly
+    for (const line of shuffle([...start.lines])) {
       if (seenLines.has(line)) continue;
       if (line.words.includes(target)) {
         if (depth !== maxDepth - 1) continue;
@@ -154,7 +155,7 @@ export class Corpus {
       colos = colos.filter((c) => c.word.length >= minWordLength && c.collocations.size > 1);
       out.push({ word: w.word, colocations: colos.map((c) => ({ val: c.word, amt: w.collocations.get(c) })) });
       if (!colos.length) break;
-      w = colos[Math.floor(Math.random() * colos.length)];
+      w = colos[Math.floor(rand() * colos.length)];
     }
     return out;
   }
@@ -167,10 +168,10 @@ export class Corpus {
     if (sw) seedLine = randomElements(sw.lines, 1)[0];
     const out = [];
     for (let i = 0; i < iterations; i++) {
-      const line = i === 0 && seedLine ? seedLine : lines[Math.floor(Math.random() * lines.length)];
+      const line = i === 0 && seedLine ? seedLine : lines[Math.floor(rand() * lines.length)];
       let word, unique, guard = 0;
       for (;;) {
-        word = line.words[Math.floor(Math.random() * line.words.length)];
+        word = line.words[Math.floor(rand() * line.words.length)];
         unique = [...new Set(word.lines)];
         if ((unique.length > 1 && this.usable(word)) || ++guard > 200) break;
       }
