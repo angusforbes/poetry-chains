@@ -33,6 +33,8 @@ export class Stage {
     this.slug = await gen.generateFromBuffer(buf.slice(0));
     this.glyphs = new Map();
     this.hold = false;                                // true while seeking: nothing half-built gets drawn
+    this.layoutVersion = 0;                           // bumped whenever tracking or leading is applied live
+    this.layoutPos = (o, p, out) => out.copy(p);      // where an object sits under the current layout
     // what is drawn (view*) can differ from what is being built (scene/camera): a new recording is made
     // in a fresh scene while the previous one keeps playing
     this.renderer.setAnimationLoop(() => { if (!this.hold) this.renderer.render(this.viewScene || this.scene, this.viewCamera || this.camera); });
@@ -133,6 +135,31 @@ export class Stage {
   }
 }
 
+/* ── boxes that can be recomputed ─────────────────────────────────────── */
+function snapshot(objs) {
+  const leaves = [];
+  for (const root of objs) root.traverse((m) => {
+    if (!m.isMesh || !m.geometry || !m.geometry.boundingBox) return;
+    const chain = [];
+    for (let a = m; a && !a.isScene; a = a.parent) chain.push({ o: a, p: a.position.clone(), q: a.quaternion.clone(), s: a.scale.clone() });
+    leaves.push({ bb: m.geometry.boundingBox, chain: chain.reverse() });
+  });
+  return { leaves, ver: -1, box: null };
+}
+const _m = new THREE.Matrix4(), _l = new THREE.Matrix4(), _p = new THREE.Vector3(), _b = new THREE.Box3();
+/** the box of a snapshot's glyphs with positions moved by the current layout (stage.layoutPos) */
+function boxOf(snap, stage) {
+  if (snap.ver === stage.layoutVersion && snap.box) return snap.box;
+  const box = new THREE.Box3();
+  for (const leaf of snap.leaves) {
+    _m.identity();
+    for (const a of leaf.chain) _m.multiply(_l.compose(stage.layoutPos(a.o, a.p, _p), a.q, a.s));
+    box.union(_b.copy(leaf.bb).applyMatrix4(_m));
+  }
+  snap.ver = stage.layoutVersion; snap.box = box;
+  return box;
+}
+
 /** The helpers of Main.coffee, shared by every visualisation. */
 export class Vis {
   constructor(stage) { this.stage = stage; }
@@ -144,14 +171,19 @@ export class Vis {
   getLineObject(text) { return this.stage.lineObject(text); }
   wait(ms) { return waitRaw(ms * this.speed); }
 
+  // A box also remembers which glyphs it framed and how they were placed (position, rotation, scale of
+  // each glyph and all its ancestors), so it can be recomputed later when tracking or leading move them.
   getBBox(object) {
     object.updateWorldMatrix(true, true);
-    return new THREE.Box3().setFromObject(object);
+    const box = new THREE.Box3().setFromObject(object);
+    box._snap = snapshot([object]);
+    return box;
   }
   getBBoxFromSubset(parent, array) {
     const box = new THREE.Box3();
     parent.updateWorldMatrix(true, true);
     for (const c of array) box.union(new THREE.Box3().setFromObject(c));
+    box._snap = snapshot(array);
     return box;
   }
   getSiblingsFromSubset(parent, array) { return parent.children.filter((c) => !array.includes(c)); }
@@ -177,13 +209,16 @@ export class Vis {
   }
   /** scale may be a number or a function (a live setting); by default the framing setting */
   scaleOf(scale) { return typeof scale === "function" ? scale() : scale || P.look.fitMargin; }
+  /** distFn(box): how far back to stand for that box. The box is recomputed from its glyphs under the
+   *  current layout (tracking, leading), so the camera follows those settings too. */
   fitTo(box, distFn, duration, dx = 0) {
-    const c = box.getCenter(new THREE.Vector3());
-    return this.panCameraToPosition3(() => new THREE.Vector3(c.x + dx, c.y, c.z + distFn()), duration || 1000, true);
+    const stage = this.stage;
+    const current = () => (box._snap ? boxOf(box._snap, stage) : box);
+    return this.panCameraToPosition3(() => { const b = current(), c = b.getCenter(new THREE.Vector3()); return new THREE.Vector3(c.x + dx, c.y, c.z + distFn(b)); }, duration || 1000, true);
   }
-  adjustCameraToFit(obj, scale, duration) { const b = this.getBBox(obj); return this.fitTo(b, () => this.getZoomDistanceFromBox(b, this.scaleOf(scale)), duration); }
-  adjustCameraToFitWidth(obj, scale, duration) { const b = this.getBBox(obj); return this.fitTo(b, () => this.getZoomDistanceFromBoxWidth(b, this.scaleOf(scale)), duration); }
-  adjustCameraToFitBox(box, scale, duration) { return this.fitTo(box, () => this.getZoomDistanceFromBox(box, this.scaleOf(scale)), duration); }
+  adjustCameraToFit(obj, scale, duration) { return this.fitTo(this.getBBox(obj), (b) => this.getZoomDistanceFromBox(b, this.scaleOf(scale)), duration); }
+  adjustCameraToFitWidth(obj, scale, duration) { return this.fitTo(this.getBBox(obj), (b) => this.getZoomDistanceFromBoxWidth(b, this.scaleOf(scale)), duration); }
+  adjustCameraToFitBox(box, scale, duration) { return this.fitTo(box, (b) => this.getZoomDistanceFromBox(b, this.scaleOf(scale)), duration); }
 
   /* ── fades: every letter staggered; resolves when the first letter finishes, as d3's each("end") did ── */
   fadeToArray(to, duration) {

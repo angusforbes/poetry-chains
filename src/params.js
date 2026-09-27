@@ -115,7 +115,6 @@ const PANEL = {
   ] },
   camera: { of: "look", controls: [
     { label: "fill (%)", keys: [["look", "fitMargin"]], min: 20, max: 150, step: 1, get: () => 100 / P.look.fitMargin, set: (v) => (P.look.fitMargin = 100 / v) },
-    { label: "perspective (°)", keys: [["look", "fov"]], min: 10, max: 120, step: 1, get: () => P.look.fov, set: (v) => (P.look.fov = v) },
   ] },
   page: { of: "look", controls: [
     { color: ["look", "textColor"], label: "ink" },

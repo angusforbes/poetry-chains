@@ -1,3 +1,4 @@
+import * as THREE from "three";
 // Entry point for every page. A page sets window.PC_CONFIG before loading this:
 //   { mode: "chain" | "lines" | "colocation" | "howe", once: true, controls: true | false }
 // Without a config (the root page) it behaves like the 2015 piece: #all or #<mode>, looping, with controls.
@@ -87,6 +88,9 @@ const T = { paused: false, rate: Number(new URLSearchParams(location.search).get
 async function record(s) {
   REC = null;                                         // playback stays out of the scene while it is rebuilt
   stage.hold = true;
+  LAYOUT.ready = false; LAYOUT.gen++;                  // a recording is always made at plain positions
+  stage.layoutPos = (o, p, out) => out.copy(p);
+  stage.layoutVersion++;
   startRecording(now);
   rebuild(s);
   for (let t = 60000; doneAt === null && t < 4.32e7; t += 60000) await advanceTo(t);
@@ -95,6 +99,68 @@ async function record(s) {
   T.marks = marks.map((x) => ({ ...x }));
   run++;                                              // the performance is over; the recording takes it from here
   stage.hold = false;
+}
+
+/* ── live tracking and leading ─────────────────────────────────────────────────────────────────
+   Every position in the piece moves in straight proportion to tracking (letter spacing) and to leading
+   (line spacing): letters sit at sums of advances plus i × spacing, lines at multiples of the line step,
+   and alignments on shared words are differences of those. So after the main recording, two more are made
+   (a little more tracking, a little more leading) in a hidden scene, and matched object by object; the
+   difference per unit is each object's rate. Any value is then a position = base + rate × change. */
+const LAYOUT = { ready: false, v0: null, base: new Map(), rate: new Map(), gen: 0 };
+const VARIANTS = [["letterSpacing", 10], ["leading", 0.5]];
+const layoutValues = () => [P.look.letterSpacing, P.look.leading];
+
+function captureBase() {
+  LAYOUT.ready = false;
+  LAYOUT.gen++;
+  LAYOUT.v0 = layoutValues();
+  LAYOUT.base = new Map(REC.linkList.map(([c]) => [c, c.position.clone()]));
+  LAYOUT.rate = new Map();
+  stage.layoutPos = (o, p, out) => out.copy(p);
+  stage.layoutVersion++;
+}
+
+/** record once more into a fresh hidden scene (the visible one keeps playing) */
+async function recordVariant(s) {
+  const keep = { scene: stage.scene, camera: stage.camera, doneAt, marks, trace: [...trace] };
+  stage.viewScene = keep.scene; stage.viewCamera = keep.camera;
+  stage.fresh();
+  startRecording(now);
+  rebuild(s);
+  for (let t = 60000; doneAt === null && t < 4.32e7; t += 60000) await advanceTo(t);
+  const rec = stopRecording();
+  run++;
+  stage.scene = keep.scene; stage.camera = keep.camera; stage.viewScene = stage.viewCamera = null;
+  doneAt = keep.doneAt; marks = keep.marks; trace.length = 0; trace.push(...keep.trace);
+  return rec;
+}
+
+async function learnLayout(s, gen) {
+  const rates = VARIANTS.map(() => new Map());
+  for (let i = 0; i < VARIANTS.length; i++) {
+    const [k, d] = VARIANTS[i], was = P.look[k];
+    P.look[k] = LAYOUT.v0[i] + d;
+    const rec = await recordVariant(s);
+    P.look[k] = was;
+    if (gen !== LAYOUT.gen) return;                      // a newer recording replaced this one
+    const A = REC.linkList, B = rec.linkList;
+    if (A.length !== B.length || A.some(([a], j) => a._letter !== B[j][0]._letter)) { console.warn("layout: recordings differ, live tracking/leading off"); return; }
+    A.forEach(([a], j) => { const r = B[j][0].position.clone().sub(LAYOUT.base.get(a)).divideScalar(d); if (r.lengthSq() > 1e-12) rates[i].set(a, r); });
+  }
+  LAYOUT.rate = rates;
+  LAYOUT.ready = true;
+  applyLayout();
+}
+
+function applyLayout() {
+  if (!LAYOUT.ready) return;
+  const dv = layoutValues().map((v, i) => v - LAYOUT.v0[i]);
+  const R = LAYOUT.rate;
+  stage.layoutPos = (o, p, out) => { out.copy(p); for (let i = 0; i < R.length; i++) { const r = R[i].get(o); if (r) out.addScaledVector(r, dv[i]); } return out; };
+  for (const [o, p0] of LAYOUT.base) stage.layoutPos(o, p0, o.position);
+  stage.layoutVersion++;
+  T.dirty = true;
 }
 
 const initial = (target, channel) => {
@@ -194,7 +260,8 @@ async function boot() {
   await stage.init(BASE + "fonts/OpenBaskerville.ttf");
   corpus = await loadCorpus(BASE + "corpus/dickinson.txt");
   vis = { chain: new ChainVis(stage), lines: new LinesVis(stage), colocation: new ColocationVis(stage), howe: new HoweVis(stage), intro: new IntroVis(stage) };
-  window.__pc = { stage, corpus, P, T, seek, show, setRate, now, trace, CFG, rec: () => REC, advanceTo,
+  window.__pc = { stage, corpus, P, T, seek, show, setRate, now, trace, CFG, rec: () => REC, advanceTo, layout: () => LAYOUT.ready, applyLayout,
+    sig2: () => { const out = []; stage.scene.updateMatrixWorld(true); stage.scene.traverseVisible((o) => { if (o._line && o.children.some((c) => c.visible && c.material && c.material.opacity > 0.5)) { const m = o.children.find((c) => c.isMesh); const w = m.getWorldPosition(new THREE.Vector3()); out.push(`${(typeof o._line === "string" ? o._line : o._line.line).slice(0, 12)}@${w.x.toFixed(3)},${w.y.toFixed(3)}`); } }); const c = stage.camera.position; return JSON.stringify({ cam: [c.x, c.y, c.z].map((v) => +v.toFixed(3)), lines: out.sort() }); },
     sig: () => { const out = []; stage.scene.traverseVisible((o) => { if (o._line && o.children.some((c) => c.visible && c.material && c.material.opacity > 0.5)) out.push((typeof o._line === "string" ? o._line : o._line.line).slice(0, 30)); }); const c = stage.camera.position; return JSON.stringify({ cam: [c.x, c.y, c.z].map((v) => +v.toFixed(3)), lines: out.sort() }); } };
 
   // a seed only comes from the URL if someone put it there (a shared link); otherwise every load is new
@@ -202,7 +269,16 @@ async function boot() {
 
   if (!CFG.controls) { rebuild(s0); drive(); return; }
 
-  const again = async (s, at = 0) => { await record(s); show(Math.min(at, T.duration)); };
+  // recordings share one clock, so they run one at a time
+  let queue = Promise.resolve();
+  const serial = (fn) => (queue = queue.then(fn, fn));
+  const again = (s, at = 0) => serial(async () => {
+    await record(s);
+    captureBase();
+    show(Math.min(at, T.duration));
+    const gen = LAYOUT.gen;
+    serial(() => learnLayout(s, gen));                  // in the background: playback carries on
+  });
   const fresh = async () => {
     const q = new URLSearchParams(location.search); q.delete("seed");
     history.replaceState(null, "", location.pathname + (q.toString() ? "?" + q : "") + location.hash);
@@ -246,6 +322,7 @@ async function boot() {
     const liveCamera = (g === "look" && ["fov", "fitMargin"].includes(k)) || (g === "colocation" && k === "fitScale") || (g === "howe" && k === "zoom");
     if (g === "look" && ["textColor", "background", "fov"].includes(k)) { stage.applyLook(); T.dirty = true; }
     else if (liveCamera) T.dirty = true;
+    else if (g === "look" && (k === "letterSpacing" || k === "leading")) { if (LAYOUT.ready) applyLayout(); else remeasure(); }
     else remeasure();
   });
   if (!CFG.mode) addEventListener("hashchange", fresh);

@@ -22,7 +22,7 @@ export class IntroVis extends Vis {
     this.scene.add(parent);
     const faded = this.fadeAll(parent.children, 1, 2500);
     const box = this.getBBox(parent);
-    const panned = this.fitTo(box, () => this.getZoomDistanceFromBox(box, 1.2), 1, -0.2);
+    const panned = this.fitTo(box, (b) => this.getZoomDistanceFromBox(b, 1.2), 1, -0.2);
     await Promise.all([faded, panned]);
     await this.wait(P.all.introHold);
     await this.fadeAll(parent.children, 0, 1000);

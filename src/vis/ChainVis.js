@@ -19,7 +19,9 @@ export class ChainVis extends Vis {
 
   async endChain(lastObject) {
     const siblings = lastObject.parent.children.filter((c) => c !== lastObject);
-    this.fadeAll(siblings, 0, 1000);
+    // 2015 zoomed to the last line while the others were still fading; now they fade first, then the zoom,
+    // so slow writing never leaves full-size lines spilling off the screen
+    await this.fadeAll(siblings, 0, 1000);
     await this.adjustCameraToFit(lastObject);
     lastObject.parent.remove(...siblings);
     const lastWord = lastObject._line.connector;
