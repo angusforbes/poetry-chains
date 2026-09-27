@@ -89,7 +89,7 @@ async function record(s) {
   stage.hold = true;
   startRecording(now);
   rebuild(s);
-  for (let t = 60000; doneAt === null && t < 3.6e6; t += 60000) await advanceTo(t);
+  for (let t = 60000; doneAt === null && t < 4.32e7; t += 60000) await advanceTo(t);
   REC = stopRecording();
   T.duration = doneAt ?? now();
   T.marks = marks.map((x) => ({ ...x }));

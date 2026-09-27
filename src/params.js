@@ -106,7 +106,7 @@ const sp = () => P.look.speed;
 const PANEL = {
   writing: { of: "look", controls: [
     // 0 = off: no letter-by-letter writing, every letter of a line fades in at once
-    { label: "hand speed (letters/s)", keys: [["look", "letterStagger"]], min: 0, max: 200, step: 1,
+    { label: "hand speed (letters/s)", keys: [["look", "letterStagger"]], min: 0, max: 500, step: 1,
       name: (v) => (v === 0 ? "hand speed · off" : "hand speed (letters/s)"),
       get: () => (P.look.letterStagger <= 0 ? 0 : 1000 / (P.look.letterStagger * sp())),
       set: (v) => (P.look.letterStagger = v <= 0 ? 0 : 1000 / (v * sp())) },
