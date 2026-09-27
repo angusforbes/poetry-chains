@@ -178,6 +178,14 @@ def analyse(num):
     for ii, x in enumerate(members):
         for y in members[ii + 1:]:
             if find(x) != find(y) and compare(words[x]["text"], words[y]["text"])[0] >= 1.0: parent[find(x)] = find(y)
+    # a word that repeats a rhyme word in the same stanza carries that rhyme too ("a Fir — / But the Fir is Where"):
+    # it joins the family as an identical echo
+    for x in list(members):
+        for y, w in enumerate(words):
+            if y != x and w["stanza"] == words[x]["stanza"] and norm(w["text"]) == norm(words[x]["text"]) and y not in members:
+                a_, b_ = min(x, y), max(x, y)
+                pairs.append({"a": a_, "b": b_, "where": "internal", "kind": "identical", "sound": 0.7, "bonus": 0, "strength": 0.7})
+                parent[find(y)] = find(x); members.append(y)
     fams, fam_of = {}, {}
     for p in pairs:
         if p["strength"] < FAMILY_AT: continue
