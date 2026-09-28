@@ -39,7 +39,14 @@ export class LinesVis extends Vis {
   viewFullLines(node) {
     const parent = node._text_object.parent;
     if (!parent) return;
-    const visible = parent.children.filter((line) => line.children.every((c) => c.material.opacity > 0 || !c.isMesh));
+    // the fully shown lines, and the shared word of every other line (the column): 2015 framed only the
+    // full lines, so the column ran off the top and bottom of the screen for the whole level
+    const visible = [];
+    for (const line of parent.children) {
+      const ms = line.children.filter((c) => c.isMesh);
+      if (ms.every((c) => c.material.opacity > 0)) visible.push(line);
+      else visible.push(...ms.filter((c) => c.material.opacity > 0));
+    }
     if (!visible.length) return;
     const box = this.getBBoxFromSubset(parent, visible);
     return this.adjustCameraToFitBox(box);   // 1.3 in 2015: the framing default

@@ -206,9 +206,12 @@ export class Vis {
   }
   hFov() { const v = THREE.MathUtils.degToRad(this.camera.fov); return Math.atan(Math.tan(v / 2) * this.camera.aspect); }
   getZoomDistanceFromBoxWidth(box, scale) { return -(Math.abs(box.min.x - box.max.x) / 2) / Math.tan(this.hFov()) * scale; }
+  // 2015 measured the height against the horizontal field of view too, so tall text ran off the top and
+  // bottom of a wide window; each side is now checked against its own
   getZoomDistanceFromBox(box, scale) {
     const w = Math.abs(box.min.x - box.max.x), h = Math.abs(box.min.y - box.max.y);
-    return -((w > h ? w : h) / 2) / Math.tan(this.hFov()) * scale;
+    const v = THREE.MathUtils.degToRad(this.camera.fov) / 2;
+    return -Math.max(w / 2 / Math.tan(this.hFov()), h / 2 / Math.tan(v)) * scale;
   }
   /** scale may be a number or a function (a live setting); by default the framing setting */
   scaleOf(scale) { return typeof scale === "function" ? scale() : scale || P.look.fitMargin; }

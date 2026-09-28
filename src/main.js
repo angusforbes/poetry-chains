@@ -260,7 +260,14 @@ async function boot() {
   await stage.init(BASE + "fonts/OpenBaskerville.ttf");
   corpus = await loadCorpus(BASE + "corpus/dickinson.txt");
   vis = { chain: new ChainVis(stage), lines: new LinesVis(stage), colocation: new ColocationVis(stage), howe: new HoweVis(stage), intro: new IntroVis(stage) };
-  window.__pc = { stage, corpus, P, T, seek, show, setRate, now, trace, CFG, rec: () => REC, advanceTo, layout: () => LAYOUT.ready, applyLayout,
+  window.__pc = { THREE, stage, corpus, P, T, seek, show, setRate, now, trace, CFG, rec: () => REC, advanceTo, layout: () => LAYOUT.ready, applyLayout,
+    // how far the visible text (letters at least half inked) reaches past the screen edges, in NDC (0 = fits)
+    overflow: () => {
+      const cam = stage.viewCamera || stage.camera, box = new THREE.Box3(), v = new THREE.Vector3(); let any = false, worst = 0, side = "";
+      stage.scene.updateMatrixWorld(true); cam.updateMatrixWorld(true);
+      stage.scene.traverseVisible((o) => { if (o.isMesh && o.material.opacity > 0.5 && o.geometry.boundingBox) { box.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) { v.set(x, y, box.min.z).project(cam); const e = Math.max(Math.abs(v.x), Math.abs(v.y)) - 1; if (e > worst) { worst = e; side = Math.abs(v.x) > Math.abs(v.y) ? "x" : "y"; } any = true; } } });
+      return any ? { worst, side } : null;
+    },
     sig2: () => { const out = []; stage.scene.updateMatrixWorld(true); stage.scene.traverseVisible((o) => { if (o._line && o.children.some((c) => c.visible && c.material && c.material.opacity > 0.5)) { const m = o.children.find((c) => c.isMesh); const w = m.getWorldPosition(new THREE.Vector3()); out.push(`${(typeof o._line === "string" ? o._line : o._line.line).slice(0, 12)}@${w.x.toFixed(3)},${w.y.toFixed(3)}`); } }); const c = stage.camera.position; return JSON.stringify({ cam: [c.x, c.y, c.z].map((v) => +v.toFixed(3)), lines: out.sort() }); },
     sig: () => { const out = []; stage.scene.traverseVisible((o) => { if (o._line && o.children.some((c) => c.visible && c.material && c.material.opacity > 0.5)) out.push((typeof o._line === "string" ? o._line : o._line.line).slice(0, 30)); }); const c = stage.camera.position; return JSON.stringify({ cam: [c.x, c.y, c.z].map((v) => +v.toFixed(3)), lines: out.sort() }); } };
 
