@@ -82,14 +82,14 @@ export const SCHEMA = {
     pageWidth:  { v: 4200, min: 1000, max: 20000, step: 100, label: "page width" },
     follow:     { v: true, bool: true, label: "camera follows" },
     lean:       { v: 15,   min: 0, max: 100, step: 1, label: "lean toward the newest" },
-    camMove:    { v: 3000, min: 100, max: 20000, step: 50, label: "camera move" },
+    camMove:    { v: 2500, min: 100, max: 20000, step: 50, label: "camera move" },
     olderInk:   { v: 100,  min: 0, max: 100, step: 1, label: "older lines ink" },
     stepHold:   { v: 700,  min: 0, max: 10000, step: 50, label: "pause between lines" },
     hold:       { v: 6000, min: 0, max: 30000, step: 250, label: "linger" },
   },
   // Crossings (Howe): Crossings whose new lines turn a little from the line they cross
   "crossings-howe": {
-    turn:       { v: 10,   min: 0, max: 90, step: 0.5, label: "turn" },
+    turn:       { v: 20,   min: 0, max: 90, step: 0.5, label: "turn" },
   },
   all: {
     intro:       { v: true, bool: true, label: "title card" },

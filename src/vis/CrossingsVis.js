@@ -58,7 +58,7 @@ export class CrossingsVis extends Vis {
     // Growth: as soon as a line is written, it sets off 1..3 new lines (from different words of it, or
     // twice through the same word), down to C.waves generations. Each new line starts after its own
     // delay and is written at its own pace, so they begin and end at different times.
-    const pending = new Set();                                      // planned lines, not yet being written
+    this.cam = { busy: null, dirty: false, last: null, lines: () => placed.filter(Boolean) };
     const grow = async (from, depth) => {
       if (depth >= C.waves) return;
       const births = [];
@@ -88,29 +88,52 @@ export class CrossingsVis extends Vis {
         const pace = Math.pow(2, (rand() * 2 - 1) * Math.log2(1 + C.paceVary / 100));   // e.g. ±60%: ×0.63 .. ×1.6
         const delay = C.stepHold + rand() * C.startSpread;
         const t = { line: pick.next, obj: nobj, across: !from.across, arrived: word };
-        // the camera sets off one move before the line is written, so it arrives as the writing starts
-        const lead = Math.min(delay, C.camMove);
-        await this.wait(delay - lead);
-        if (C.follow) { this.parent.add(nobj); pending.add(nobj); this.follow([...placed.filter(Boolean), ...pending], nobj, lead); }
-        await this.wait(lead);
-        pending.delete(nobj);
+        await this.wait(delay);
         placed.splice(placed.indexOf(null), 1);
         if (C.olderInk < 100) this.fadeAll(placed.filter(Boolean), C.olderInk / 100, 1000);
         await this.inkIn(nobj, placed, word.word, pace);
+        if (C.follow) this.lineDone(nobj);
         return grow(t, depth + 1);
       }));
     };
     await grow({ line: line0, obj: obj0, across: true, arrived: null }, 0);
-    if (C.follow) this.follow(placed.filter(Boolean), null, C.camMove * 1.5);   // at the end: the whole poem
+    if (C.follow) { await this.cam.busy; await this.follow(placed.filter(Boolean), null, C.camMove * 1.5); }   // at the end: the whole poem
     await this.wait(C.hold);
     await this.fadeAll(this.parent.children, 0, 2000);
     this.parent.remove(...this.parent.children);
   }
 
-  /** Camera that follows the writing: it frames every line so far (the poem fills the frame), its centre
-   *  leaning toward the line being written, so it drifts with the growth. Each new line retargets the
-   *  move from wherever the camera has got to; the target is recomputed from the glyphs as they sit now,
-   *  so tracking, leading, lens and fill stay live. */
+  /** The camera waits for the writing. When a line has been written, it looks: if any line (written or
+   *  being written) is out of the frame, it makes one move to fit them all; while that move lasts, lines
+   *  that finish only mark it to look again when the move is over. So lines may run out of the frame for
+   *  a while, and the camera never jumps ahead of them. */
+  lineDone(obj) {
+    const cam = this.cam;
+    cam.dirty = true; cam.last = obj;
+    if (cam.busy) return;
+    cam.busy = (async () => {
+      while (cam.dirty) {
+        cam.dirty = false;
+        const lines = cam.lines();
+        if (this.outOfFrame(lines)) await this.follow(lines, cam.last, P.crossings.camMove);
+      }
+      cam.busy = null;
+    })();
+  }
+  /** does any glyph of these lines (as laid out now) reach past the frame from where the camera is? */
+  outOfFrame(lines) {
+    const box = this.liveBox(this.getBBoxFromSubset(this.parent, lines)), cam = this.camera, v = new THREE.Vector3();
+    cam.updateMatrixWorld(true);
+    for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) {
+      v.set(x, y, box.min.z).project(cam);
+      if (Math.abs(v.x) > 1 || Math.abs(v.y) > 1) return true;
+    }
+    return false;
+  }
+
+  /** One camera move: frame every line so far (the poem fills the frame), the centre leaning toward the
+   *  line just written. The target is recomputed from the glyphs as they sit now, so tracking, leading,
+   *  lens and fill stay live. */
   follow(lines, newest, duration) {
     const all = this.getBBoxFromSubset(this.parent, lines);
     const near = newest ? this.getBBoxFromSubset(this.parent, [newest]) : null;
