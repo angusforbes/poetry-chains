@@ -47,34 +47,27 @@ export class CrossingsVis extends Vis {
     this.place(obj0, new THREE.Vector3(w0 / 2 + (rand() - 0.5) * halfW * 0.4, (rand() - 0.5) * halfH * 0.6, 0));
     shown.add(line0);
     await this.inkIn(obj0, placed, null, 1);
-    const trail = [{ line: line0, obj: obj0, across: true, arrived: null }];
     const centres = [{ x: -obj0._p0.x + w0 / 2, y: obj0._p0.y }];  // where each line sits (screen x, text units)
 
-    // waves: every line of the last wave sets off 1..3 new lines at once (from different words of it, or
-    // twice through the same word), each written at its own slightly different speed
-    let wave = [trail[0]];
-    for (let n = 0; n < C.waves && placed.length < C.maxLines; n++) {
-      await this.wait(C.stepHold);
+    // Growth: as soon as a line is written, it sets off 1..3 new lines (from different words of it, or
+    // twice through the same word), down to C.waves generations. Each new line starts after its own
+    // delay and is written at its own pace, so they begin and end at different times.
+    const grow = async (from, depth) => {
+      if (depth >= C.waves) return;
       const births = [];
-      const branch = (from, count) => {
-        for (let b = 0; b < count && placed.length + births.length < C.maxLines; b++) {
-          const rowStep = drawRows();
-          const pick = this.choose(corpus, from.line, from.obj, from.across, from.arrived, { shown, used, skip, rowStep, halfW, halfH, em, centres });
-          if (!pick) return;
-          shown.add(pick.next);
-          centres.push(pick.centre);
-          births.push({ from, pick, rowStep });
-        }
-      };
-      for (const from of wave) branch(from, C.branchMin + Math.floor(rand() * (C.branchMax - C.branchMin + 1)));
-      // a dead end everywhere: go back to the latest earlier line that still leads somewhere
-      for (let k = trail.length - 1; !births.length && k >= 0; k--) branch(trail[k], 1);
-      if (!births.length) break;                                    // nowhere left to go: finished
-      if (C.olderInk < 100) this.fadeAll(placed, C.olderInk / 100, 1000);
-      const next = [];
-      const inks = births.map(({ from, pick, rowStep }) => {
+      const count = C.branchMin + Math.floor(rand() * (C.branchMax - C.branchMin + 1));
+      for (let b = 0; b < count && placed.length < C.maxLines; b++) {
+        const rowStep = drawRows();
+        const pick = this.choose(corpus, from.line, from.obj, from.across, from.arrived, { shown, used, skip, rowStep, halfW, halfH, em, centres });
+        if (!pick) break;
+        shown.add(pick.next);
+        centres.push(pick.centre);
+        used.add(pick.word);
+        births.push({ pick, rowStep });
+        placed.push(null);                                          // its place in the count, until it is added
+      }
+      await Promise.all(births.map(async ({ pick, rowStep }) => {
         const { word } = pick;
-        used.add(word);
         const nobj = this.makeLine(pick.next, from.across, rowStep, drawWords());   // across → down, down → across
         // the new line's copy of the word on the old one's, a little off register
         const a = this.wordAnchor(from.obj, word.word), b = this.wordAnchor(nobj, word.word);
@@ -82,14 +75,17 @@ export class CrossingsVis extends Vis {
         const off = new THREE.Vector3((rand() - 0.5) * 2 * mis, (rand() - 0.5) * 2 * mis, 0);
         nobj.position.copy(from.obj.position).add(a.pos).sub(b.pos).add(off.clone().multiply(new THREE.Vector3(1, P.look.leading, 1)));
         nobj._p0 = (from.obj._p0 || from.obj.position).clone().add(a.p0).sub(b.p0).add(off);
+        const pace = Math.pow(2, (rand() * 2 - 1) * Math.log2(1 + C.paceVary / 100));   // e.g. ±60%: ×0.63 .. ×1.6
+        const delay = C.stepHold + rand() * C.startSpread;
         const t = { line: pick.next, obj: nobj, across: !from.across, arrived: word };
-        trail.push(t); next.push(t);
-        const pace = 1 + (rand() * 2 - 1) * (C.paceVary / 100);    // its own speed: they don't all finish together
-        return this.inkIn(nobj, placed, word.word, pace);
-      });
-      await Promise.all(inks);
-      wave = next;
-    }
+        await this.wait(delay);
+        placed.splice(placed.indexOf(null), 1);
+        if (C.olderInk < 100) this.fadeAll(placed.filter(Boolean), C.olderInk / 100, 1000);
+        await this.inkIn(nobj, placed, word.word, pace);
+        return grow(t, depth + 1);
+      }));
+    };
+    await grow({ line: line0, obj: obj0, across: true, arrived: null }, 0);
     await this.wait(C.hold);
     await this.fadeAll(this.parent.children, 0, 2000);
     this.parent.remove(...this.parent.children);
