@@ -71,6 +71,7 @@ export const SCHEMA = {
     startSpread:{ v: 3000, min: 0, max: 20000, step: 50, label: "start spread" },
     skipCommon: { v: 60,   min: 0, max: 500, step: 5, label: "skip the commonest words" },
     minLetters: { v: 3,    min: 1, max: 8, step: 1, label: "shortest word" },
+    firstPlain: { v: true, bool: true, label: "first line: proper spacing" },
     cramped:    { v: 67,   min: 0, max: 100, step: 1, label: "cramped share" },
     rowTight:   { v: 35,   min: 5, max: 100, step: 1, label: "tightest list rows" },
     wordTight:  { v: -100, min: -300, max: 100, step: 5, label: "tightest word spaces" },
@@ -224,6 +225,7 @@ const PANEL = {
     { label: "shortest word (letters)", keys: [["crossings", "minLetters"]], min: 1, max: 8, step: 1, get: () => P.crossings.minLetters, set: (v) => (P.crossings.minLetters = v) },
     // spacing per line, % of normal: list rows (100% = lines set solid) and the spaces between words
     // (0% = words touching; below, they run into each other); "cramped share" of lines are under 100%
+    { bool: ["crossings", "firstPlain"], label: "first line: proper spacing" },
     { label: "cramped share (%)", keys: [["crossings", "cramped"]], min: 0, max: 100, step: 1, get: () => P.crossings.cramped, set: (v) => (P.crossings.cramped = v) },
     { label: "list rows, tightest (%)", keys: [["crossings", "rowTight"]], min: 5, max: 100, step: 1, get: () => P.crossings.rowTight, set: (v) => (P.crossings.rowTight = v) },
     { label: "word spaces, tightest (%)", keys: [["crossings", "wordTight"]], min: -300, max: 100, step: 5, get: () => P.crossings.wordTight, set: (v) => (P.crossings.wordTight = v) },

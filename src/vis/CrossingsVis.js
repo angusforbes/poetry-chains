@@ -90,7 +90,8 @@ export class CrossingsVis extends Vis {
     const leads = (l) => l.words.some((w) => !skip(w) && new Set(w.lines).size > 1);
     let line0 = pool[Math.floor(rand() * pool.length)];
     for (let k = 0; k < 50 && !leads(line0); k++) line0 = pool[Math.floor(rand() * pool.length)];
-    const obj0 = this.makeLine(line0, false, 0, drawWords());
+    const w0space = drawWords();                                    // drawn either way, so runs stay the same
+    const obj0 = this.makeLine(line0, false, 0, C.firstPlain ? 1 : w0space);   // the first line: proper spacing
     if (this.colour) this.tint(obj0, rand(), rand(), "first");
     const w0 = line0.text.length * ADV * em;
     this.place(obj0, new THREE.Vector3(w0 / 2 + (rand() - 0.5) * halfW * 0.4, (rand() - 0.5) * halfH * 0.6, 0));
