@@ -28,10 +28,10 @@ export class CrossingsVis extends Vis {
   /** Tone (Crossings (Howe)): every line gets its own black or grey (tone 0 = black .. 1 = the lightest
    *  grey setting) and its own hue, a turn of the colour wheel from the line it crosses; "colour" mixes
    *  from the grey toward that hue (0% by default: blacks and greys only). All applied live. */
-  tint(obj, hue, tone) {
+  tint(obj, hue, tone, end = null) {
     if (!this.colour) return;
     const c = new THREE.Color();
-    this.inks.push({ c, hue, tone });
+    this.inks.push({ c, hue, tone, end });                         // end: "first" or "last" line of its crossing
     this.recolour(this.inks.at(-1));
     for (const m of obj.children) if (m.isMesh) m.material.color = c;
     obj._hue = hue;
@@ -39,7 +39,10 @@ export class CrossingsVis extends Vis {
   recolour(one) {
     const K = this.colour(), ink = new THREE.Color(P.look.textColor), hue = new THREE.Color();
     for (const x of one ? [one] : this.inks) {
-      x.c.copy(ink).lerp(new THREE.Color(1, 1, 1), x.tone * K.greyest / 100);                 // its black or grey
+      // in greys, the first and last line of a crossing can be kept black (the ink colour)
+      const black = !K.colourOn && ((x.end === "first" && K.firstBlack) || (x.end === "last" && K.lastBlack));
+      x.c.copy(ink).lerp(new THREE.Color(1, 1, 1), black ? 0 : x.tone * K.greyest / 100);   // its black or grey
+      if (!K.colourOn) continue;
       hue.setHSL(x.hue, K.saturation / 100, K.lightness / 100, THREE.SRGBColorSpace);
       x.c.lerp(hue, K.amount / 100);
     }
@@ -71,7 +74,7 @@ export class CrossingsVis extends Vis {
     let line0 = pool[Math.floor(rand() * pool.length)];
     for (let k = 0; k < 50 && !leads(line0); k++) line0 = pool[Math.floor(rand() * pool.length)];
     const obj0 = this.makeLine(line0, false, 0, drawWords());
-    if (this.colour) this.tint(obj0, rand(), rand());
+    if (this.colour) this.tint(obj0, rand(), rand(), "first");
     const w0 = line0.text.length * ADV * em;
     this.place(obj0, new THREE.Vector3(w0 / 2 + (rand() - 0.5) * halfW * 0.4, (rand() - 0.5) * halfH * 0.6, 0));
     shown.add(line0);
@@ -93,10 +96,10 @@ export class CrossingsVis extends Vis {
         shown.add(pick.next);
         centres.push(pick.centre);
         used.add(pick.word);
-        births.push({ pick, rowStep });
         placed.push(null);                                          // its place in the count, until it is added
+        births.push({ pick, rowStep, last: placed.length === C.maxLines });   // the line that fills the crossing
       }
-      await Promise.all(births.map(async ({ pick, rowStep }) => {
+      await Promise.all(births.map(async ({ pick, rowStep, last }) => {
         const { word } = pick;
         const nobj = this.makeLine(pick.next, from.across, rowStep, drawWords());   // across → down, down → across
         nobj.rotation.z = pick.rot;
@@ -113,7 +116,7 @@ export class CrossingsVis extends Vis {
         const slow = rand() < C.slowShare / 100, u = rand();
         if (slow) pace = C.slowest / 100 + u * (0.6 - C.slowest / 100);     // e.g. ×0.2 .. ×0.6
         const delay = C.stepHold + rand() * C.startSpread;
-        if (this.colour) this.tint(nobj, (from.obj._hue + 1 / 6 + rand() * 2 / 3) % 1, rand());   // hue 60°..300° from its parent
+        if (this.colour) this.tint(nobj, (from.obj._hue + 1 / 6 + rand() * 2 / 3) % 1, rand(), last ? "last" : null);   // hue 60°..300° from its parent
         const t = { line: pick.next, obj: nobj, across: !from.across, arrived: word };
         trail.push(t);
         await this.wait(delay);

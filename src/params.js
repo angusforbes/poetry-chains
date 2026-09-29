@@ -92,7 +92,10 @@ export const SCHEMA = {
   "crossings-howe": {
     turn:       { v: 20,   min: 0, max: 90, step: 0.5, label: "turn" },
     greyest:    { v: 55,   min: 0, max: 100, step: 1, label: "lightest grey" },
-    amount:     { v: 0,    min: 0, max: 100, step: 1, label: "colour" },
+    firstBlack: { v: true, bool: true, label: "first line black" },
+    lastBlack:  { v: true, bool: true, label: "last line black" },
+    colourOn:   { v: false, bool: true, label: "colours instead of greys" },
+    amount:     { v: 100,  min: 0, max: 100, step: 1, label: "colour" },
     saturation: { v: 50,   min: 0, max: 100, step: 1, label: "saturation" },
     lightness:  { v: 30,   min: 0, max: 100, step: 1, label: "lightness" },
   },
@@ -231,7 +234,10 @@ const PANEL = {
     { label: "turn from the crossed line (± °)", keys: [["crossings-howe", "turn"]], min: 0, max: 90, step: 0.5, get: () => P["crossings-howe"].turn, set: (v) => (P["crossings-howe"].turn = v) },
     // each line its own black or grey (0% = all in the ink colour), and its own hue, mixed in by "colour"
     { label: "lightest grey (%)", keys: [["crossings-howe", "greyest"]], min: 0, max: 100, step: 1, get: () => P["crossings-howe"].greyest, set: (v) => (P["crossings-howe"].greyest = v) },
-    { label: "colour (%)", keys: [["crossings-howe", "amount"]], min: 0, max: 100, step: 1, get: () => P["crossings-howe"].amount, set: (v) => (P["crossings-howe"].amount = v) },
+    { bool: ["crossings-howe", "firstBlack"], label: "first line black (greys)" },
+    { bool: ["crossings-howe", "lastBlack"], label: "last line black (greys)" },
+    { bool: ["crossings-howe", "colourOn"], label: "colours instead of greys" },
+    { label: "colour strength (%)", keys: [["crossings-howe", "amount"]], min: 0, max: 100, step: 1, get: () => P["crossings-howe"].amount, set: (v) => (P["crossings-howe"].amount = v) },
     { label: "colour saturation (%)", keys: [["crossings-howe", "saturation"]], min: 0, max: 100, step: 1, get: () => P["crossings-howe"].saturation, set: (v) => (P["crossings-howe"].saturation = v) },
     { label: "colour lightness (%)", keys: [["crossings-howe", "lightness"]], min: 0, max: 100, step: 1, get: () => P["crossings-howe"].lightness, set: (v) => (P["crossings-howe"].lightness = v) },
   ] },
