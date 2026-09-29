@@ -41,7 +41,9 @@ export class CrossingsVis extends Vis {
     for (const x of one ? [one] : this.inks) {
       // in greys, the first and last line of a crossing can be kept black (the ink colour)
       const black = !K.colourOn && ((x.end === "first" && K.firstBlack) || (x.end === "last" && K.lastBlack));
-      x.c.copy(ink).lerp(new THREE.Color(1, 1, 1), black ? 0 : x.tone * K.greyest / 100);   // its black or grey
+      // two tones: a share of lines in the lightest grey, the rest black; otherwise any grey up to it
+      const tone = K.twoTone ? (x.tone < K.greyShare / 100 ? 1 : 0) : x.tone;
+      x.c.copy(ink).lerp(new THREE.Color(1, 1, 1), black ? 0 : tone * K.greyest / 100);   // its black or grey
       if (!K.colourOn) continue;
       hue.setHSL(x.hue, K.saturation / 100, K.lightness / 100, THREE.SRGBColorSpace);
       x.c.lerp(hue, K.amount / 100);
@@ -85,7 +87,7 @@ export class CrossingsVis extends Vis {
     // Growth: as soon as a line is written, it sets off 1..3 new lines (from different words of it, or
     // twice through the same word), until the crossing has C.maxLines lines. Each new line starts after its own
     // delay and is written at its own pace, so they begin and end at different times.
-    this.cam = { busy: null, dirty: false, last: null, lines: () => placed.filter(Boolean) };
+    this.cam = { busy: null, moving: false, dirty: false, last: null, lines: () => placed.filter(Boolean) };
     const grow = async (from, depth) => {
       const births = [];
       const count = C.branchMin + Math.floor(rand() * (C.branchMax - C.branchMin + 1));
@@ -128,6 +130,15 @@ export class CrossingsVis extends Vis {
       }));
     };
     const trail = [{ line: line0, obj: obj0, across: true, arrived: null }];
+    // the camera also watches what has been written so far: a slow line can run out of the frame long
+    // before it is finished, and the camera moves as soon as written letters are out, not only at ends
+    let growing = true;
+    const watch = (async () => {
+      while (C.follow && growing) {
+        await this.wait(C.camCheck);
+        if (growing) this.check();
+      }
+    })();
     await grow(trail[0], 0);
     // every branch came to a dead end before the crossing was full: grow again from the latest line
     // that still leads somewhere new, until it is full or nothing does
@@ -136,6 +147,8 @@ export class CrossingsVis extends Vis {
       await grow(trail[k], 0);
       if (placed.length > n) k = trail.length;
     }
+    growing = false;
+    await watch;
     if (C.follow) { await this.cam.busy; await this.follow(placed.filter(Boolean), null, C.camMove * 1.5); }   // at the end: the whole poem
     await this.wait(C.hold);
     await this.fadeAll(this.parent.children, 0, 2000);
@@ -146,18 +159,28 @@ export class CrossingsVis extends Vis {
    *  being written) is out of the frame, it makes one move to fit them all; while that move lasts, lines
    *  that finish only mark it to look again when the move is over. So lines may run out of the frame for
    *  a while, and the camera never jumps ahead of them. */
-  lineDone(obj) {
+  lineDone(obj) { this.cam.last = obj; this.check(); }
+  /** look now (or, during a move, as soon as it ends): if any written letter is out of the frame, make
+   *  one move that fits every letter written so far (and, of finished lines, the whole line) */
+  check() {
     const cam = this.cam;
-    cam.dirty = true; cam.last = obj;
-    if (cam.busy) return;
+    cam.dirty = true;
+    if (cam.moving) return;
+    cam.moving = true;                                             // set before the loop: it may finish at once
     cam.busy = (async () => {
       while (cam.dirty) {
         cam.dirty = false;
-        const lines = cam.lines();
-        if (this.outOfFrame(lines)) await this.follow(lines, cam.last, P.crossings.camMove);
+        const written = this.written(cam.lines());
+        if (written.length && this.outOfFrame(written)) await this.follow(written, cam.last, P.crossings.camMove);
       }
-      cam.busy = null;
+      cam.moving = false;
     })();
+  }
+  /** what has been written: the letters that are at least half inked */
+  written(lines) {
+    const out = [];
+    for (const l of lines) for (const m of l.children) if (m.isMesh && m.material.opacity >= 0.5) out.push(m);
+    return out;
   }
   /** does any glyph of these lines (as laid out now) reach past the frame from where the camera is? */
   outOfFrame(lines) {

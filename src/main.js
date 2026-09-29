@@ -331,7 +331,7 @@ async function boot() {
   stage.onLayout = () => { T.dirty = true; };
   onChange((g, k) => {
     const liveCamera = (g === "look" && ["fov", "fitMargin"].includes(k)) || (g === "colocation" && k === "fitScale") || (g === "howe" && k === "zoom") || (g === "crossings" && k === "lean");
-    const recolour = (g === "crossings-howe" && ["greyest", "firstBlack", "lastBlack", "colourOn", "amount", "saturation", "lightness"].includes(k)) || (g === "look" && k === "textColor");
+    const recolour = (g === "crossings-howe" && ["greyest", "twoTone", "greyShare", "firstBlack", "lastBlack", "colourOn", "amount", "saturation", "lightness"].includes(k)) || (g === "look" && k === "textColor");
     if (recolour && vis["crossings-howe"]) vis["crossings-howe"].recolour();   // the lines' own colours, live
     if (g === "look" && ["textColor", "background", "fov"].includes(k)) { stage.applyLook(); T.dirty = true; }
     else if (recolour) T.dirty = true;

@@ -83,6 +83,7 @@ export const SCHEMA = {
     pageWidth:  { v: 4200, min: 1000, max: 20000, step: 100, label: "page width" },
     follow:     { v: true, bool: true, label: "camera follows" },
     lean:       { v: 15,   min: 0, max: 100, step: 1, label: "lean toward the newest" },
+    camCheck:   { v: 1000, min: 200, max: 10000, step: 50, label: "camera looks every" },
     camMove:    { v: 2500, min: 100, max: 20000, step: 50, label: "camera move" },
     olderInk:   { v: 100,  min: 0, max: 100, step: 1, label: "older lines ink" },
     stepHold:   { v: 700,  min: 0, max: 10000, step: 50, label: "pause between lines" },
@@ -90,8 +91,10 @@ export const SCHEMA = {
   },
   // Crossings (Howe): Crossings whose new lines turn a little from the line they cross
   "crossings-howe": {
-    turn:       { v: 20,   min: 0, max: 90, step: 0.5, label: "turn" },
-    greyest:    { v: 55,   min: 0, max: 100, step: 1, label: "lightest grey" },
+    turn:       { v: 45,   min: 0, max: 90, step: 0.5, label: "turn" },
+    twoTone:    { v: true, bool: true, label: "two tones" },
+    greyShare:  { v: 50,   min: 0, max: 100, step: 1, label: "grey lines" },
+    greyest:    { v: 72,   min: 0, max: 100, step: 1, label: "lightest grey" },
     firstBlack: { v: true, bool: true, label: "first line black" },
     lastBlack:  { v: true, bool: true, label: "last line black" },
     colourOn:   { v: false, bool: true, label: "colours instead of greys" },
@@ -225,6 +228,7 @@ const PANEL = {
     { label: "page width (lines)", keys: [["crossings", "pageWidth"]], min: 1, max: 15, step: 0.1, get: () => P.crossings.pageWidth / 1200, set: (v) => (P.crossings.pageWidth = v * 1200) },
     { bool: ["crossings", "follow"], label: "camera follows the writing" },
     { label: "lean toward the newest line (%)", keys: [["crossings", "lean"]], min: 0, max: 100, step: 1, get: () => P.crossings.lean, set: (v) => (P.crossings.lean = v) },
+    { label: "camera looks every (s)", keys: [["crossings", "camCheck"]], min: 0.2, max: 10, step: 0.1, get: () => (P.crossings.camCheck * sp()) / 1000, set: (v) => (P.crossings.camCheck = (v * 1000) / sp()) },
     { label: "camera move (s)", keys: [["crossings", "camMove"]], min: 0.1, max: 20, step: 0.1, get: () => (P.crossings.camMove * sp()) / 1000, set: (v) => (P.crossings.camMove = (v * 1000) / sp()) },
     { label: "older lines ink (%)", keys: [["crossings", "olderInk"]], min: 0, max: 100, step: 1, get: () => P.crossings.olderInk, set: (v) => (P.crossings.olderInk = v) },
     { label: "pause between lines (s)", keys: [["crossings", "stepHold"]], min: 0, max: 10, step: 0.05, get: () => (P.crossings.stepHold * sp()) / 1000, set: (v) => (P.crossings.stepHold = (v * 1000) / sp()) },
@@ -234,6 +238,8 @@ const PANEL = {
     { label: "turn from the crossed line (± °)", keys: [["crossings-howe", "turn"]], min: 0, max: 90, step: 0.5, get: () => P["crossings-howe"].turn, set: (v) => (P["crossings-howe"].turn = v) },
     // each line its own black or grey (0% = all in the ink colour), and its own hue, mixed in by "colour"
     { label: "lightest grey (%)", keys: [["crossings-howe", "greyest"]], min: 0, max: 100, step: 1, get: () => P["crossings-howe"].greyest, set: (v) => (P["crossings-howe"].greyest = v) },
+    { bool: ["crossings-howe", "twoTone"], label: "two tones: black and the lightest grey" },
+    { label: "grey lines (% of lines, two tones)", keys: [["crossings-howe", "greyShare"]], min: 0, max: 100, step: 1, get: () => P["crossings-howe"].greyShare, set: (v) => (P["crossings-howe"].greyShare = v) },
     { bool: ["crossings-howe", "firstBlack"], label: "first line black (greys)" },
     { bool: ["crossings-howe", "lastBlack"], label: "last line black (greys)" },
     { bool: ["crossings-howe", "colourOn"], label: "colours instead of greys" },
