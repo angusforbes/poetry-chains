@@ -62,10 +62,11 @@ export const SCHEMA = {
   // Crossings (2026, standalone page only): Howe × Lines, across and down like a crossword that is not clean
   crossings: {
     seed:       { v: "",   text: true, label: "begin with the word" },
-    waves:      { v: 4,    min: 1, max: 12, step: 1, label: "waves" },
     branchMin:  { v: 1,    min: 1, max: 6, step: 1, label: "fewest new lines per line" },
     branchMax:  { v: 3,    min: 1, max: 6, step: 1, label: "most new lines per line" },
-    maxLines:   { v: 60,   min: 2, max: 200, step: 1, label: "most lines" },
+    maxLines:   { v: 15,   min: 2, max: 200, step: 1, label: "lines per crossing" },
+    slowShare:  { v: 30,   min: 0, max: 100, step: 1, label: "slow lines" },
+    slowest:    { v: 15,   min: 2, max: 60, step: 1, label: "slowest pace" },
     paceVary:   { v: 60,   min: 0, max: 200, step: 1, label: "pace varies" },
     startSpread:{ v: 3000, min: 0, max: 20000, step: 50, label: "start spread" },
     skipCommon: { v: 60,   min: 0, max: 500, step: 5, label: "skip the commonest words" },
@@ -90,6 +91,10 @@ export const SCHEMA = {
   // Crossings (Howe): Crossings whose new lines turn a little from the line they cross
   "crossings-howe": {
     turn:       { v: 20,   min: 0, max: 90, step: 0.5, label: "turn" },
+    greyest:    { v: 55,   min: 0, max: 100, step: 1, label: "lightest grey" },
+    amount:     { v: 0,    min: 0, max: 100, step: 1, label: "colour" },
+    saturation: { v: 50,   min: 0, max: 100, step: 1, label: "saturation" },
+    lightness:  { v: 30,   min: 0, max: 100, step: 1, label: "lightness" },
   },
   all: {
     intro:       { v: true, bool: true, label: "title card" },
@@ -194,11 +199,12 @@ const PANEL = {
   ] },
   crossings: { of: "crossings", standalone: true, controls: [
     { text: ["crossings", "seed"], label: "begin with the word" },
-    { label: "waves", keys: [["crossings", "waves"]], min: 1, max: 12, step: 1, get: () => P.crossings.waves, set: (v) => (P.crossings.waves = v) },
     { label: "fewest new lines per line", keys: [["crossings", "branchMin"]], min: 1, max: 6, step: 1, get: () => P.crossings.branchMin, set: (v) => (P.crossings.branchMin = Math.min(v, P.crossings.branchMax)) },
     { label: "most new lines per line", keys: [["crossings", "branchMax"]], min: 1, max: 6, step: 1, get: () => P.crossings.branchMax, set: (v) => (P.crossings.branchMax = Math.max(v, P.crossings.branchMin)) },
-    { label: "most lines on the page", keys: [["crossings", "maxLines"]], min: 2, max: 200, step: 1, get: () => P.crossings.maxLines, set: (v) => (P.crossings.maxLines = v) },
+    { label: "lines per crossing", keys: [["crossings", "maxLines"]], min: 2, max: 200, step: 1, get: () => P.crossings.maxLines, set: (v) => (P.crossings.maxLines = v) },
     { label: "starts spread over (s)", keys: [["crossings", "startSpread"]], min: 0, max: 20, step: 0.1, get: () => (P.crossings.startSpread * sp()) / 1000, set: (v) => (P.crossings.startSpread = (v * 1000) / sp()) },
+    { label: "slow lines (% of lines)", keys: [["crossings", "slowShare"]], min: 0, max: 100, step: 1, get: () => P.crossings.slowShare, set: (v) => (P.crossings.slowShare = v) },
+    { label: "slowest pace (% of usual)", keys: [["crossings", "slowest"]], min: 2, max: 60, step: 1, get: () => P.crossings.slowest, set: (v) => (P.crossings.slowest = v) },
     { label: "pace varies (± %)", keys: [["crossings", "paceVary"]], min: 0, max: 200, step: 1, get: () => P.crossings.paceVary, set: (v) => (P.crossings.paceVary = v) },
     { label: "skip the commonest (words)", keys: [["crossings", "skipCommon"]], min: 0, max: 500, step: 5, get: () => P.crossings.skipCommon, set: (v) => (P.crossings.skipCommon = v) },
     { label: "shortest word (letters)", keys: [["crossings", "minLetters"]], min: 1, max: 8, step: 1, get: () => P.crossings.minLetters, set: (v) => (P.crossings.minLetters = v) },
@@ -223,6 +229,11 @@ const PANEL = {
   ] },
   "crossings-howe": { of: "crossings-howe", standalone: true, controls: [
     { label: "turn from the crossed line (± °)", keys: [["crossings-howe", "turn"]], min: 0, max: 90, step: 0.5, get: () => P["crossings-howe"].turn, set: (v) => (P["crossings-howe"].turn = v) },
+    // each line its own black or grey (0% = all in the ink colour), and its own hue, mixed in by "colour"
+    { label: "lightest grey (%)", keys: [["crossings-howe", "greyest"]], min: 0, max: 100, step: 1, get: () => P["crossings-howe"].greyest, set: (v) => (P["crossings-howe"].greyest = v) },
+    { label: "colour (%)", keys: [["crossings-howe", "amount"]], min: 0, max: 100, step: 1, get: () => P["crossings-howe"].amount, set: (v) => (P["crossings-howe"].amount = v) },
+    { label: "colour saturation (%)", keys: [["crossings-howe", "saturation"]], min: 0, max: 100, step: 1, get: () => P["crossings-howe"].saturation, set: (v) => (P["crossings-howe"].saturation = v) },
+    { label: "colour lightness (%)", keys: [["crossings-howe", "lightness"]], min: 0, max: 100, step: 1, get: () => P["crossings-howe"].lightness, set: (v) => (P["crossings-howe"].lightness = v) },
   ] },
   all: { of: "all", controls: [
     { bool: ["all", "intro"], label: "title card" },

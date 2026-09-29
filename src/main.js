@@ -263,7 +263,7 @@ async function boot() {
   await stage.init(BASE + "fonts/OpenBaskerville.ttf");
   corpus = await loadCorpus(BASE + "corpus/dickinson.txt");
   vis = { chain: new ChainVis(stage), lines: new LinesVis(stage), colocation: new ColocationVis(stage), howe: new HoweVis(stage), intro: new IntroVis(stage), crossings: new CrossingsVis(stage),
-    "crossings-howe": new CrossingsVis(stage, { turn: () => P["crossings-howe"].turn }) };
+    "crossings-howe": new CrossingsVis(stage, { turn: () => P["crossings-howe"].turn, colour: () => P["crossings-howe"] }) };
   window.__pc = { THREE, stage, corpus, P, T, seek, show, setRate, now, trace, CFG, rec: () => REC, advanceTo, layout: () => LAYOUT.ready, applyLayout,
     // how far the visible text (letters at least half inked) reaches past the screen edges, in NDC (0 = fits)
     overflow: () => {
@@ -331,7 +331,10 @@ async function boot() {
   stage.onLayout = () => { T.dirty = true; };
   onChange((g, k) => {
     const liveCamera = (g === "look" && ["fov", "fitMargin"].includes(k)) || (g === "colocation" && k === "fitScale") || (g === "howe" && k === "zoom") || (g === "crossings" && k === "lean");
+    const recolour = (g === "crossings-howe" && ["greyest", "amount", "saturation", "lightness"].includes(k)) || (g === "look" && k === "textColor");
+    if (recolour && vis["crossings-howe"]) vis["crossings-howe"].recolour();   // the lines' own colours, live
     if (g === "look" && ["textColor", "background", "fov"].includes(k)) { stage.applyLook(); T.dirty = true; }
+    else if (recolour) T.dirty = true;
     else if (liveCamera) T.dirty = true;
     else if (g === "look" && (k === "letterSpacing" || k === "leading")) { if (LAYOUT.ready) applyLayout(); else remeasure(); }
     else remeasure();

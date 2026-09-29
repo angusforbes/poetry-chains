@@ -23,7 +23,27 @@ const Z = new THREE.Vector3(0, 0, 1), DEG = Math.PI / 180;
 export class CrossingsVis extends Vis {
   /** turn(): ± degrees each new line may turn from the line it crosses (0: across and down only).
    *  Crossings (Howe) uses it: turns add up, so later lines can stand at steep angles. */
-  constructor(stage, { turn = () => 0 } = {}) { super(stage); this.turn = turn; }
+  constructor(stage, { turn = () => 0, colour = null } = {}) { super(stage); this.turn = turn; this.colour = colour; this.inks = []; }
+
+  /** Tone (Crossings (Howe)): every line gets its own black or grey (tone 0 = black .. 1 = the lightest
+   *  grey setting) and its own hue, a turn of the colour wheel from the line it crosses; "colour" mixes
+   *  from the grey toward that hue (0% by default: blacks and greys only). All applied live. */
+  tint(obj, hue, tone) {
+    if (!this.colour) return;
+    const c = new THREE.Color();
+    this.inks.push({ c, hue, tone });
+    this.recolour(this.inks.at(-1));
+    for (const m of obj.children) if (m.isMesh) m.material.color = c;
+    obj._hue = hue;
+  }
+  recolour(one) {
+    const K = this.colour(), ink = new THREE.Color(P.look.textColor), hue = new THREE.Color();
+    for (const x of one ? [one] : this.inks) {
+      x.c.copy(ink).lerp(new THREE.Color(1, 1, 1), x.tone * K.greyest / 100);                 // its black or grey
+      hue.setHSL(x.hue, K.saturation / 100, K.lightness / 100, THREE.SRGBColorSpace);
+      x.c.lerp(hue, K.amount / 100);
+    }
+  }
   async start({ corpus }) {
     const C = P.crossings, em = P.look.fontSize;
     this.parent = this.getParentObject();
@@ -46,8 +66,12 @@ export class CrossingsVis extends Vis {
     // the first line, across, somewhere near the middle
     const seedWord = C.seed.trim().toLowerCase() && corpus.words.get(C.seed.trim().toLowerCase());
     const pool = seedWord ? [...new Set(seedWord.lines)] : corpus.lines;
-    const line0 = pool[Math.floor(rand() * pool.length)];
+    // a first line with at least one word that leads to another line
+    const leads = (l) => l.words.some((w) => !skip(w) && new Set(w.lines).size > 1);
+    let line0 = pool[Math.floor(rand() * pool.length)];
+    for (let k = 0; k < 50 && !leads(line0); k++) line0 = pool[Math.floor(rand() * pool.length)];
     const obj0 = this.makeLine(line0, false, 0, drawWords());
+    if (this.colour) this.tint(obj0, rand(), rand());
     const w0 = line0.text.length * ADV * em;
     this.place(obj0, new THREE.Vector3(w0 / 2 + (rand() - 0.5) * halfW * 0.4, (rand() - 0.5) * halfH * 0.6, 0));
     shown.add(line0);
@@ -56,11 +80,10 @@ export class CrossingsVis extends Vis {
     const centres = [{ x: -obj0._p0.x + w0 / 2, y: obj0._p0.y }];  // where each line sits (screen x, text units)
 
     // Growth: as soon as a line is written, it sets off 1..3 new lines (from different words of it, or
-    // twice through the same word), down to C.waves generations. Each new line starts after its own
+    // twice through the same word), until the crossing has C.maxLines lines. Each new line starts after its own
     // delay and is written at its own pace, so they begin and end at different times.
     this.cam = { busy: null, dirty: false, last: null, lines: () => placed.filter(Boolean) };
     const grow = async (from, depth) => {
-      if (depth >= C.waves) return;
       const births = [];
       const count = C.branchMin + Math.floor(rand() * (C.branchMax - C.branchMin + 1));
       for (let b = 0; b < count && placed.length < C.maxLines; b++) {
@@ -85,9 +108,14 @@ export class CrossingsVis extends Vis {
         const off = new THREE.Vector3((rand() - 0.5) * 2 * mis, (rand() - 0.5) * 2 * mis, 0);
         nobj.position.copy(from.obj.position).add(a.pos).sub(b.pos).add(off.clone().multiply(new THREE.Vector3(1, P.look.leading, 1)));
         nobj._p0 = (from.obj._p0 || from.obj.position).clone().add(a.p0).sub(b.p0).add(off);
-        const pace = Math.pow(2, (rand() * 2 - 1) * Math.log2(1 + C.paceVary / 100));   // e.g. ±60%: ×0.63 .. ×1.6
+        // its own pace: around the usual (±paceVary), or, for a share of lines, much slower
+        let pace = Math.pow(2, (rand() * 2 - 1) * Math.log2(1 + C.paceVary / 100));   // e.g. ±60%: ×0.63 .. ×1.6
+        const slow = rand() < C.slowShare / 100, u = rand();
+        if (slow) pace = C.slowest / 100 + u * (0.6 - C.slowest / 100);     // e.g. ×0.2 .. ×0.6
         const delay = C.stepHold + rand() * C.startSpread;
+        if (this.colour) this.tint(nobj, (from.obj._hue + 1 / 6 + rand() * 2 / 3) % 1, rand());   // hue 60°..300° from its parent
         const t = { line: pick.next, obj: nobj, across: !from.across, arrived: word };
+        trail.push(t);
         await this.wait(delay);
         placed.splice(placed.indexOf(null), 1);
         if (C.olderInk < 100) this.fadeAll(placed.filter(Boolean), C.olderInk / 100, 1000);
@@ -96,7 +124,15 @@ export class CrossingsVis extends Vis {
         return grow(t, depth + 1);
       }));
     };
-    await grow({ line: line0, obj: obj0, across: true, arrived: null }, 0);
+    const trail = [{ line: line0, obj: obj0, across: true, arrived: null }];
+    await grow(trail[0], 0);
+    // every branch came to a dead end before the crossing was full: grow again from the latest line
+    // that still leads somewhere new, until it is full or nothing does
+    for (let k = trail.length - 1; placed.length < C.maxLines && k >= 0; k--) {
+      const n = placed.length;
+      await grow(trail[k], 0);
+      if (placed.length > n) k = trail.length;
+    }
     if (C.follow) { await this.cam.busy; await this.follow(placed.filter(Boolean), null, C.camMove * 1.5); }   // at the end: the whole poem
     await this.wait(C.hold);
     await this.fadeAll(this.parent.children, 0, 2000);
