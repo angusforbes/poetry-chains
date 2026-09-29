@@ -16,15 +16,18 @@ export class Stage {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(window.devicePixelRatio);
     this.inset = 0;                                   // width taken by the settings panel on the right
-    this.renderer.setSize(this.viewW(), innerHeight);
+    this.renderer.setSize(this.viewW(), this.viewH());
     document.body.appendChild(this.renderer.domElement);
+    Object.assign(this.renderer.domElement.style, { position: "fixed", left: "0px", top: "0px" });
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(P.look.fov, this.viewW() / innerHeight, 0.1, 1000);
+    this.camera = new THREE.PerspectiveCamera(P.look.fov, this.viewW() / this.viewH(), 0.1, 1000);
     this.camera.position.set(0, 0, CAMERA_Z);
     this.camera.lookAt(0, 0, 0);
     this.textColor = new THREE.Color(P.look.textColor);     // one Color shared by every letter: live recolouring
     this.applyLook();
     addEventListener("resize", () => this.layout());
+    // pinch zoom (phones): see zoomView()
+    if (window.visualViewport) for (const e of ["resize", "scroll"]) visualViewport.addEventListener(e, () => this.zoomView());
     const buf = await (await fetch(fontUrl)).arrayBuffer();
     const _ot = await import("opentype.js");
     this.font = (_ot.default || _ot).parse(buf.slice(0));
@@ -115,21 +118,52 @@ export class Stage {
     return o;
   }
 
-  viewW() { return Math.max(200, innerWidth - this.inset); }
+  // the page's own size (the layout viewport): unlike innerWidth, it doesn't shrink when a phone zooms in
+  viewW() { return Math.max(200, (document.documentElement.clientWidth || innerWidth) - this.inset); }
+  viewH() { return document.documentElement.clientHeight || innerHeight; }
   /** fit canvas and cameras to the space left beside the settings panel */
   layout(inset = this.inset) {
     this.inset = inset;
-    for (const c of new Set([this.camera, this.viewCamera].filter(Boolean))) { c.aspect = this.viewW() / innerHeight; c.updateProjectionMatrix(); }
-    this.renderer.setSize(this.viewW(), innerHeight);
+    for (const c of new Set([this.camera, this.viewCamera].filter(Boolean))) c.aspect = this.viewW() / this.viewH();
+    this.zoomView();
     if (this.onLayout) this.onLayout();
+  }
+  /** Pinch zoom on a phone magnifies the page, and a canvas would be magnified as a bitmap (pixelated).
+   *  So while zoomed in, the canvas covers only the part of the page on screen, at the screen's own
+   *  resolution, and the cameras draw only that part of the full view (a view offset). The zoom is the
+   *  reader's; the letters (Slug: drawn from their outlines) stay sharp at any zoom, at a constant cost. */
+  zoomView() {
+    const vv = window.visualViewport, W = this.viewW(), H = this.viewH(), dpr = window.devicePixelRatio || 1;
+    const zoomed = !!vv && vv.scale > 1.01;
+    const r = this.renderer, st = r.domElement.style;
+    if (zoomed) {
+      const x = Math.max(0, vv.offsetLeft), y = Math.max(0, vv.offsetTop);
+      const w = Math.min(vv.width, W - x), h = Math.min(vv.height, H - y);
+      r.setPixelRatio(dpr * vv.scale);
+      r.setSize(w, h);
+      st.left = x + "px"; st.top = y + "px";
+      this.zoom = { W, H, x, y, w, h };
+    } else {
+      r.setPixelRatio(dpr);
+      r.setSize(W, H);
+      st.left = st.top = "0px";
+      this.zoom = null;
+    }
+    for (const c of new Set([this.camera, this.viewCamera].filter(Boolean))) this.viewOffset(c);
+  }
+  viewOffset(c) {
+    const z = this.zoom;
+    if (z) c.setViewOffset(z.W, z.H, z.x, z.y, z.w, z.h); else c.clearViewOffset();
+    c.updateProjectionMatrix();
   }
 
   /** a fresh scene and camera to build into (the view keeps showing the old ones until swapped) */
   fresh() {
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(P.look.fov, this.viewW() / innerHeight, 0.1, 1000);
+    this.camera = new THREE.PerspectiveCamera(P.look.fov, this.viewW() / this.viewH(), 0.1, 1000);
     this.camera.position.set(0, 0, CAMERA_Z);
     this.camera.lookAt(0, 0, 0);
+    this.viewOffset(this.camera);
   }
   showBuilt() { this.viewScene = this.scene; this.viewCamera = this.camera; }
 

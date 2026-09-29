@@ -228,8 +228,10 @@ export class CrossingsVis extends Vis {
   }
   /** does any glyph of these lines (as laid out now) reach past the frame from where the camera is? */
   outOfFrame(lines) {
-    const box = this.liveBox(this.getBBoxFromSubset(this.parent, lines)), cam = this.camera, v = new THREE.Vector3();
-    cam.updateMatrixWorld(true);
+    const box = this.liveBox(this.getBBoxFromSubset(this.parent, lines)), v = new THREE.Vector3();
+    // the whole view, not just the part a zoomed-in phone shows (the reader's zoom never moves the camera)
+    const cam = this.camera.clone();
+    cam.clearViewOffset(); cam.updateProjectionMatrix(); cam.updateMatrixWorld(true);
     for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) {
       v.set(x, y, box.min.z).project(cam);
       if (Math.abs(v.x) > 1 || Math.abs(v.y) > 1) return true;

@@ -267,7 +267,8 @@ async function boot() {
   window.__pc = { THREE, stage, corpus, P, T, seek, show, setRate, now, trace, CFG, rec: () => REC, advanceTo, layout: () => LAYOUT.ready, applyLayout,
     // how far the visible text (letters at least half inked) reaches past the screen edges, in NDC (0 = fits)
     overflow: () => {
-      const cam = stage.viewCamera || stage.camera, box = new THREE.Box3(), v = new THREE.Vector3(); let any = false, worst = 0, side = "";
+      const cam = (stage.viewCamera || stage.camera).clone(), box = new THREE.Box3(), v = new THREE.Vector3(); let any = false, worst = 0, side = "";
+      cam.clearViewOffset(); cam.updateProjectionMatrix();
       stage.scene.updateMatrixWorld(true); cam.updateMatrixWorld(true);
       stage.scene.traverseVisible((o) => { if (o.isMesh && o.material.opacity > 0.5 && o.geometry.boundingBox) { box.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld); for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) { v.set(x, y, box.min.z).project(cam); const e = Math.max(Math.abs(v.x), Math.abs(v.y)) - 1; if (e > worst) { worst = e; side = Math.abs(v.x) > Math.abs(v.y) ? "x" : "y"; } any = true; } } });
       return any ? { worst, side } : null;
