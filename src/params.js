@@ -92,6 +92,11 @@ export const SCHEMA = {
   // Crossings (Howe): Crossings whose new lines turn a little from the line they cross
   "crossings-howe": {
     turn:       { v: 45,   min: 0, max: 90, step: 0.5, label: "turn" },
+    fading:     { v: true, bool: true, label: "one stays, the rest fade" },
+    branchMin:  { v: 3,    min: 1, max: 10, step: 1, label: "fewest new lines per line (fading)" },
+    branchMax:  { v: 5,    min: 1, max: 10, step: 1, label: "most new lines per line (fading)" },
+    fadeMin:    { v: 5000, min: 250, max: 60000, step: 250, label: "quickest fade" },
+    fadeMax:    { v: 20000, min: 250, max: 60000, step: 250, label: "slowest fade" },
     twoTone:    { v: true, bool: true, label: "two tones" },
     greyShare:  { v: 50,   min: 0, max: 100, step: 1, label: "grey lines" },
     byAlpha:    { v: true, bool: true, label: "light by transparency" },
@@ -239,6 +244,12 @@ const PANEL = {
   ] },
   "crossings-howe": { of: "crossings-howe", standalone: true, controls: [
     { label: "turn from the crossed line (± °)", keys: [["crossings-howe", "turn"]], min: 0, max: 90, step: 0.5, get: () => P["crossings-howe"].turn, set: (v) => (P["crossings-howe"].turn = v) },
+    // one new line stays and grows on, the others are written and fade away (in their own time)
+    { bool: ["crossings-howe", "fading"], label: "one new line stays, the rest fade" },
+    { label: "fewest new lines per line (fading)", keys: [["crossings-howe", "branchMin"]], min: 1, max: 10, step: 1, get: () => P["crossings-howe"].branchMin, set: (v) => (P["crossings-howe"].branchMin = Math.min(v, P["crossings-howe"].branchMax)) },
+    { label: "most new lines per line (fading)", keys: [["crossings-howe", "branchMax"]], min: 1, max: 10, step: 1, get: () => P["crossings-howe"].branchMax, set: (v) => (P["crossings-howe"].branchMax = Math.max(v, P["crossings-howe"].branchMin)) },
+    { label: "quickest fade (s)", keys: [["crossings-howe", "fadeMin"]], min: 0.25, max: 60, step: 0.25, get: () => P["crossings-howe"].fadeMin / 1000, set: (v) => (P["crossings-howe"].fadeMin = Math.min(v * 1000, P["crossings-howe"].fadeMax)) },
+    { label: "slowest fade (s)", keys: [["crossings-howe", "fadeMax"]], min: 0.25, max: 60, step: 0.25, get: () => P["crossings-howe"].fadeMax / 1000, set: (v) => (P["crossings-howe"].fadeMax = Math.max(v * 1000, P["crossings-howe"].fadeMin)) },
     // each line its own black or grey (0% = all in the ink colour), and its own hue, mixed in by "colour"
     { bool: ["crossings-howe", "byAlpha"], label: "light lines by transparency (not shade)" },
     { label: "light lines' opacity (%, transparency)", keys: [["crossings-howe", "greyAlpha"]], min: 0, max: 100, step: 1, get: () => P["crossings-howe"].greyAlpha, set: (v) => (P["crossings-howe"].greyAlpha = v) },

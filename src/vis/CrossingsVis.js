@@ -23,7 +23,8 @@ const Z = new THREE.Vector3(0, 0, 1), DEG = Math.PI / 180;
 export class CrossingsVis extends Vis {
   /** turn(): ± degrees each new line may turn from the line it crosses (0: across and down only).
    *  Crossings (Howe) uses it: turns add up, so later lines can stand at steep angles. */
-  constructor(stage, { turn = () => 0, colour = null } = {}) { super(stage); this.turn = turn; this.colour = colour; this.inks = []; }
+  /** fade(): Crossings (Howe)'s settings for "one stays, the rest fade" (null: every new line stays) */
+  constructor(stage, { turn = () => 0, colour = null, fade = null } = {}) { super(stage); this.turn = turn; this.colour = colour; this.fade = fade; this.inks = []; }
 
   /** Tone (Crossings (Howe)): every line gets its own black or grey (tone 0 = black .. 1 = the lightest
    *  grey setting) and its own hue, a turn of the colour wheel from the line it crosses; "colour" mixes
@@ -101,21 +102,31 @@ export class CrossingsVis extends Vis {
     // Growth: as soon as a line is written, it sets off 1..3 new lines (from different words of it, or
     // twice through the same word), until the crossing has C.maxLines lines. Each new line starts after its own
     // delay and is written at its own pace, so they begin and end at different times.
-    this.cam = { busy: null, moving: false, dirty: false, last: null, lines: () => placed.filter(Boolean) };
+    // One stays, the rest fade (Crossings (Howe), a switch): of the new lines a line sets off, the first
+    // stays and grows on; the others are written, fade away over their own time (e.g. 5..20 s) and set off
+    // nothing. Only the lines that stay count toward the crossing's lines.
+    const F = this.fade && this.fade().fading ? this.fade() : null;
+    const fading = [];                                              // fading lines still on the page
+    this.cam = { busy: null, moving: false, dirty: false, last: null, lines: () => [...placed.filter(Boolean), ...fading] };
     const grow = async (from, depth) => {
       const births = [];
-      const count = C.branchMin + Math.floor(rand() * (C.branchMax - C.branchMin + 1));
-      for (let b = 0; b < count && placed.length < C.maxLines; b++) {
+      const [lo, hi] = F ? [F.branchMin, F.branchMax] : [C.branchMin, C.branchMax];
+      const count = lo + Math.floor(rand() * (hi - lo + 1));
+      for (let b = 0; b < count && (b > 0 && F || placed.length < C.maxLines); b++) {
         const rowStep = drawRows();
         const pick = this.choose(corpus, from.line, from.obj, from.across, from.arrived, { shown, used, skip, rowStep, halfW, halfH, em, centres });
         if (!pick) break;
         shown.add(pick.next);
         centres.push(pick.centre);
+        if (F && b > 0) {                                           // fading lines lead nowhere: they use up no words
+          births.push({ pick, rowStep, fades: F.fadeMin + rand() * (F.fadeMax - F.fadeMin) });
+          continue;
+        }
         used.add(pick.word);
         placed.push(null);                                          // its place in the count, until it is added
         births.push({ pick, rowStep, last: placed.length === C.maxLines });   // the line that fills the crossing
       }
-      await Promise.all(births.map(async ({ pick, rowStep, last }) => {
+      await Promise.all(births.map(async ({ pick, rowStep, last, fades }) => {
         const { word } = pick;
         const nobj = this.makeLine(pick.next, from.across, rowStep, drawWords());   // across → down, down → across
         nobj.rotation.z = pick.rot;
@@ -134,6 +145,15 @@ export class CrossingsVis extends Vis {
         const delay = C.stepHold + rand() * C.startSpread;
         if (this.colour) this.tint(nobj, (from.obj._hue + 1 / 6 + rand() * 2 / 3) % 1, rand(), last ? "last" : null);   // hue 60°..300° from its parent
         const t = { line: pick.next, obj: nobj, across: !from.across, arrived: word };
+        if (fades) {                                                // written, then fades away, and is gone
+          await this.wait(delay);
+          await this.inkIn(nobj, fading, word.word, pace);
+          if (C.follow) this.lineDone(nobj);
+          await this.fadeOut(nobj, fades);
+          fading.splice(fading.indexOf(nobj), 1);
+          this.parent.remove(nobj);
+          return;
+        }
         trail.push(t);
         await this.wait(delay);
         placed.splice(placed.indexOf(null), 1);
@@ -224,6 +244,14 @@ export class CrossingsVis extends Vis {
   place(obj, p0) {
     obj._p0 = p0.clone();
     obj.position.copy(p0);
+  }
+
+  /** fade a line out over ms (at tempo 1), its letters a little staggered */
+  fadeOut(obj, ms) {
+    const letters = obj.children.filter((m) => m.isMesh), dur = ms * this.speed, gap = Math.min(40, (dur * 0.2) / Math.max(1, letters.length));
+    letters.forEach((m, i) => tween({ duration: dur, delay: i * gap, target: m, channel: "opacity", silent: true,
+      init: () => { const from = m.material.opacity; return (t) => { m.material.opacity = from * (1 - t); }; } }));
+    return wait(dur + gap * letters.length);
   }
 
   /** ink a line in, letter by letter, at pace × the usual speed (the shared word first, then the rest) */
