@@ -189,6 +189,8 @@ export class Vis {
     box._snap = snapshot(array);
     return box;
   }
+  /** a box as its glyphs sit now (tracking and leading applied); plain boxes are returned as they are */
+  liveBox(box) { return box._snap ? boxOf(box._snap) : box; }
   getSiblingsFromSubset(parent, array) { return parent.children.filter((c) => !array.includes(c)); }
 
   /* ── camera ── */

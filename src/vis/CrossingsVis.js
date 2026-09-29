@@ -31,9 +31,9 @@ export class CrossingsVis extends Vis {
     const aspect = this.camera.aspect || 1.6;
     const halfW = C.pageWidth / 2, halfH = C.pageWidth / aspect / 2;
 
-    // the page: the camera frames it once and stays there
+    // still camera: it frames the page once and stays there (following: see follow())
     const s = this.scaleText, page = new THREE.Box3(new THREE.Vector3(-halfW * s, -halfH * s, 0), new THREE.Vector3(halfW * s, halfH * s, 0));
-    await this.fitTo(page, (b) => this.getZoomDistanceFromBox(b, this.scaleOf()), 10);
+    if (!C.follow) await this.fitTo(page, (b) => this.getZoomDistanceFromBox(b, this.scaleOf()), 10);
 
     const shown = new Set(), used = new Set(), placed = [];
     const skip = (w) => !w || !w.word || w.word === "—" || w.rank <= C.skipCommon || w.word.length < C.minLetters;
@@ -46,12 +46,14 @@ export class CrossingsVis extends Vis {
     const w0 = line0.text.length * ADV * em;
     this.place(obj0, new THREE.Vector3(w0 / 2 + (rand() - 0.5) * halfW * 0.4, (rand() - 0.5) * halfH * 0.6, 0));
     shown.add(line0);
+    if (C.follow) { this.parent.add(obj0); this.follow([obj0], obj0, 10); }
     await this.inkIn(obj0, placed, null, 1);
     const centres = [{ x: -obj0._p0.x + w0 / 2, y: obj0._p0.y }];  // where each line sits (screen x, text units)
 
     // Growth: as soon as a line is written, it sets off 1..3 new lines (from different words of it, or
     // twice through the same word), down to C.waves generations. Each new line starts after its own
     // delay and is written at its own pace, so they begin and end at different times.
+    const pending = new Set();                                      // planned lines, not yet being written
     const grow = async (from, depth) => {
       if (depth >= C.waves) return;
       const births = [];
@@ -78,7 +80,12 @@ export class CrossingsVis extends Vis {
         const pace = Math.pow(2, (rand() * 2 - 1) * Math.log2(1 + C.paceVary / 100));   // e.g. ±60%: ×0.63 .. ×1.6
         const delay = C.stepHold + rand() * C.startSpread;
         const t = { line: pick.next, obj: nobj, across: !from.across, arrived: word };
-        await this.wait(delay);
+        // the camera sets off one move before the line is written, so it arrives as the writing starts
+        const lead = Math.min(delay, C.camMove);
+        await this.wait(delay - lead);
+        if (C.follow) { this.parent.add(nobj); pending.add(nobj); this.follow([...placed.filter(Boolean), ...pending], nobj, lead); }
+        await this.wait(lead);
+        pending.delete(nobj);
         placed.splice(placed.indexOf(null), 1);
         if (C.olderInk < 100) this.fadeAll(placed.filter(Boolean), C.olderInk / 100, 1000);
         await this.inkIn(nobj, placed, word.word, pace);
@@ -86,9 +93,25 @@ export class CrossingsVis extends Vis {
       }));
     };
     await grow({ line: line0, obj: obj0, across: true, arrived: null }, 0);
+    if (C.follow) this.follow(placed.filter(Boolean), null, C.camMove * 1.5);   // at the end: the whole poem
     await this.wait(C.hold);
     await this.fadeAll(this.parent.children, 0, 2000);
     this.parent.remove(...this.parent.children);
+  }
+
+  /** Camera that follows the writing: it frames every line so far (the poem fills the frame), its centre
+   *  leaning toward the line being written, so it drifts with the growth. Each new line retargets the
+   *  move from wherever the camera has got to; the target is recomputed from the glyphs as they sit now,
+   *  so tracking, leading, lens and fill stay live. */
+  follow(lines, newest, duration) {
+    const all = this.getBBoxFromSubset(this.parent, lines);
+    const near = newest ? this.getBBoxFromSubset(this.parent, [newest]) : null;
+    const C = P.crossings, v = new THREE.Vector3();
+    return this.panCameraToPosition3(() => {
+      const A = this.liveBox(all), c = A.getCenter(new THREE.Vector3());
+      if (near) c.lerp(this.liveBox(near).getCenter(v), C.lean / 100);
+      return new THREE.Vector3(c.x, c.y, c.z + this.getZoomDistanceFromBox(A, this.scaleOf() * (1 - C.lean / 400)));
+    }, duration, true);
   }
 
   place(obj, p0) {
@@ -98,7 +121,7 @@ export class CrossingsVis extends Vis {
 
   /** ink a line in, letter by letter, at pace × the usual speed (the shared word first, then the rest) */
   async inkIn(obj, placed, word, pace) {
-    this.parent.add(obj);
+    if (obj.parent !== this.parent) this.parent.add(obj);
     placed.push(obj);
     const letters = obj.children;
     if (word) {

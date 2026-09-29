@@ -328,7 +328,7 @@ async function boot() {
   document.documentElement.style.setProperty("--panel-w", PANEL_W + "px");
   stage.onLayout = () => { T.dirty = true; };
   onChange((g, k) => {
-    const liveCamera = (g === "look" && ["fov", "fitMargin"].includes(k)) || (g === "colocation" && k === "fitScale") || (g === "howe" && k === "zoom");
+    const liveCamera = (g === "look" && ["fov", "fitMargin"].includes(k)) || (g === "colocation" && k === "fitScale") || (g === "howe" && k === "zoom") || (g === "crossings" && k === "lean");
     if (g === "look" && ["textColor", "background", "fov"].includes(k)) { stage.applyLook(); T.dirty = true; }
     else if (liveCamera) T.dirty = true;
     else if (g === "look" && (k === "letterSpacing" || k === "leading")) { if (LAYOUT.ready) applyLayout(); else remeasure(); }
