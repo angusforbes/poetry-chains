@@ -18,7 +18,12 @@ import { tween, wait } from "./tween.js";
 const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const ADV = 0.45;          // an average letter advance, in ems, for estimating where a line would reach
 
+const Z = new THREE.Vector3(0, 0, 1), DEG = Math.PI / 180;
+
 export class CrossingsVis extends Vis {
+  /** turn(): ± degrees each new line may turn from the line it crosses (0: across and down only).
+   *  Crossings (Howe) uses it: turns add up, so later lines can stand at steep angles. */
+  constructor(stage, { turn = () => 0 } = {}) { super(stage); this.turn = turn; }
   async start({ corpus }) {
     const C = P.crossings, em = P.look.fontSize;
     this.parent = this.getParentObject();
@@ -71,8 +76,11 @@ export class CrossingsVis extends Vis {
       await Promise.all(births.map(async ({ pick, rowStep }) => {
         const { word } = pick;
         const nobj = this.makeLine(pick.next, from.across, rowStep, drawWords());   // across → down, down → across
-        // the new line's copy of the word on the old one's, a little off register
+        nobj.rotation.z = pick.rot;
+        // the new line's copy of the word on the old one's, a little off register (each turned with its line)
         const a = this.wordAnchor(from.obj, word.word), b = this.wordAnchor(nobj, word.word);
+        const ra = from.obj.rotation.z, rb = pick.rot;
+        for (const k of ["pos", "p0"]) { a[k].applyAxisAngle(Z, ra); b[k].applyAxisAngle(Z, rb); }
         const mis = C.misregister;
         const off = new THREE.Vector3((rand() - 0.5) * 2 * mis, (rand() - 0.5) * 2 * mis, 0);
         nobj.position.copy(from.obj.position).add(a.pos).sub(b.pos).add(off.clone().multiply(new THREE.Vector3(1, P.look.leading, 1)));
@@ -183,7 +191,10 @@ export class CrossingsVis extends Vis {
   /** the next word (from this line) and line (holding that word): new places first, and on the page */
   choose(corpus, line, obj, across, arrived, { shown, used, skip, rowStep, halfW, halfH, em, centres }) {
     const C = P.crossings, adv = ADV * em;
-    const base = obj._p0 || obj.position;
+    const base = obj._p0 || obj.position, rot = obj.rotation.z, t = this.turn();
+    // this line's turn, relative to the one it crosses (drawn only when turning, so plain Crossings keeps its runs)
+    const nrot = t ? rot + (rand() * 2 - 1) * t * DEG : rot;
+    const cs = Math.cos(-nrot), sn = Math.sin(-nrot);               // on screen, x is mirrored: turn the other way
     const seen = new Set();
     let best = null;
     for (const w of line.words) {
@@ -193,21 +204,27 @@ export class CrossingsVis extends Vis {
       if (!fresh.length) continue;
       const i = this.getWordIndex(line.text, w.word);
       if (i < 0) continue;
-      const anchor = base.clone().add(obj.children[i]._p0);      // text units at 100%/0%; screen right is -x
+      const anchor = base.clone().add(obj.children[i]._p0.clone().applyAxisAngle(Z, rot));   // 100%/0%; screen right is -x
       const ax = -anchor.x, ay = anchor.y;
       const sample = fresh.length > 8 ? shuffle(fresh.slice()).slice(0, 8) : fresh;
       for (const next of sample) {
         const j = this.getWordIndex(next.text, w.word);
         if (j < 0) continue;
-        let x0, x1, y0, y1;
+        let x0, x1, y0, y1;                                          // its extent around the shared word, unturned
         if (across) {                                                // next goes down, as a list
           const words = next.text.split(/\s+/).filter(Boolean);
           const r = next.text.slice(0, j).split(/\s+/).filter(Boolean).length;
-          x0 = ax; x1 = ax + Math.max(...words.map((x) => x.length)) * adv;
-          y1 = ay + r * rowStep; y0 = ay - (words.length - 1 - r) * rowStep;
+          x0 = 0; x1 = Math.max(...words.map((x) => x.length)) * adv;
+          y1 = r * rowStep; y0 = -(words.length - 1 - r) * rowStep;
         } else {                                                     // next goes across
-          x0 = ax - j * adv; x1 = x0 + next.text.length * adv; y0 = ay - em * 0.3; y1 = ay + em * 0.7;
+          x0 = -j * adv; x1 = x0 + next.text.length * adv; y0 = -em * 0.3; y1 = em * 0.7;
         }
+        if (nrot) {                                                  // turned: the box around its turned corners
+          const xs = [], ys = [];
+          for (const [x, y] of [[x0, y0], [x1, y0], [x0, y1], [x1, y1]]) { xs.push(x * cs - y * sn); ys.push(x * sn + y * cs); }
+          x0 = Math.min(...xs); x1 = Math.max(...xs); y0 = Math.min(...ys); y1 = Math.max(...ys);
+        }
+        x0 += ax; x1 += ax; y0 += ay; y1 += ay;
         // how far this line's middle is from the lines already there (by the nearest): open space scores
         const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
         const room = Math.min(...centres.map((c) => Math.hypot((c.x - cx) / halfW, (c.y - cy) / halfH))) / 0.5;
@@ -216,7 +233,7 @@ export class CrossingsVis extends Vis {
           - (over / (halfW * 0.25)) * (C.keepOnPage / 25)              // stays on the page
           + Math.min(room, 1) * (C.spread / 10)                        // toward open space
           + rand() * C.chance;                                         // and a little luck
-        if (!best || score > best.score) best = { score, word: w, next, centre: { x: cx, y: cy } };
+        if (!best || score > best.score) best = { score, word: w, next, rot: nrot, centre: { x: cx, y: cy } };
       }
     }
     return best;

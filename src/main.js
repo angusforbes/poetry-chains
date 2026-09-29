@@ -33,7 +33,8 @@ const gen = {
   colocation: (word) => corpus.collocations({ ...P.colocation, seed: word || P.colocation.seed.trim().toLowerCase() || null }),
   howe: () => corpus.howe(P.howe),
   intro: () => null,
-  crossings: () => ({ corpus, toJSON: () => "crossings" }),   // it chooses as it goes (it needs the layout)
+  crossings: () => ({ corpus, toJSON: () => "crossings" }),
+  "crossings-howe": () => ({ corpus, toJSON: () => "crossings-howe" }),   // it chooses as it goes (it needs the layout)
 };
 const data = (m, w) => { const d = gen[m](w); trace.push(`${Math.round(now())} ${m} ${JSON.stringify(d).slice(0, 80)}`); return d; };
 const lastWord = (m, d) => {
@@ -261,7 +262,8 @@ async function boot() {
   }
   await stage.init(BASE + "fonts/OpenBaskerville.ttf");
   corpus = await loadCorpus(BASE + "corpus/dickinson.txt");
-  vis = { chain: new ChainVis(stage), lines: new LinesVis(stage), colocation: new ColocationVis(stage), howe: new HoweVis(stage), intro: new IntroVis(stage), crossings: new CrossingsVis(stage) };
+  vis = { chain: new ChainVis(stage), lines: new LinesVis(stage), colocation: new ColocationVis(stage), howe: new HoweVis(stage), intro: new IntroVis(stage), crossings: new CrossingsVis(stage),
+    "crossings-howe": new CrossingsVis(stage, { turn: () => P["crossings-howe"].turn }) };
   window.__pc = { THREE, stage, corpus, P, T, seek, show, setRate, now, trace, CFG, rec: () => REC, advanceTo, layout: () => LAYOUT.ready, applyLayout,
     // how far the visible text (letters at least half inked) reaches past the screen edges, in NDC (0 = fits)
     overflow: () => {
@@ -320,7 +322,7 @@ async function boot() {
   };
   buildGui({
     modes: CFG.mode ? [CFG.mode] : MODES, current: mode(),
-    groups: CFG.mode && CFG.mode !== "all" ? ["look", CFG.mode] : null,
+    groups: CFG.groups || (CFG.mode && CFG.mode !== "all" ? ["look", CFG.mode] : null),
     extra: [[SHARE, shareSequence], [LINK, linkHere]],
     onMode: (m) => { location.hash = m; }, onRestart: fresh, onPause: togglePause,
     onPanel: (open) => { document.body.classList.toggle("panel-open", open); stage.layout(open ? PANEL_W : 0); },

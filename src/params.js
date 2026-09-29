@@ -87,6 +87,10 @@ export const SCHEMA = {
     stepHold:   { v: 700,  min: 0, max: 10000, step: 50, label: "pause between lines" },
     hold:       { v: 6000, min: 0, max: 30000, step: 250, label: "linger" },
   },
+  // Crossings (Howe): Crossings whose new lines turn a little from the line they cross
+  "crossings-howe": {
+    turn:       { v: 10,   min: 0, max: 90, step: 0.5, label: "turn" },
+  },
   all: {
     intro:       { v: true, bool: true, label: "title card" },
     howeRepeats: { v: 6,    min: 0, max: 12, step: 1, label: "Howe scatters" },
@@ -217,6 +221,9 @@ const PANEL = {
     { label: "pause between lines (s)", keys: [["crossings", "stepHold"]], min: 0, max: 10, step: 0.05, get: () => (P.crossings.stepHold * sp()) / 1000, set: (v) => (P.crossings.stepHold = (v * 1000) / sp()) },
     { label: "pause at the end (s)", keys: [["crossings", "hold"]], min: 0, max: 30, step: 0.1, get: () => (P.crossings.hold * sp()) / 1000, set: (v) => (P.crossings.hold = (v * 1000) / sp()) },
   ] },
+  "crossings-howe": { of: "crossings-howe", standalone: true, controls: [
+    { label: "turn from the crossed line (± °)", keys: [["crossings-howe", "turn"]], min: 0, max: 90, step: 0.5, get: () => P["crossings-howe"].turn, set: (v) => (P["crossings-howe"].turn = v) },
+  ] },
   all: { of: "all", controls: [
     { bool: ["all", "intro"], label: "title card" },
     { label: "Howe scatters per cycle", keys: [["all", "howeRepeats"]], min: 0, max: 12, step: 1, get: () => P.all.howeRepeats, set: (v) => (P.all.howeRepeats = v) },
@@ -236,7 +243,7 @@ export function buildGui({ modes, current, onMode, onRestart, onPause, groups = 
   for (const [name, sec] of Object.entries(PANEL)) {
     if (groups ? !groups.includes(sec.of) : sec.standalone) continue;   // standalone pages' settings stay off the root page
     const folder = gui.addFolder(name);
-    if (sec.of !== "look" && sec.of !== current && current !== "all") folder.close();
+    if (sec.of !== "look" && sec.of !== current && current !== "all" && !(groups && groups.includes(sec.of))) folder.close();
     for (const c of sec.controls) {
       const direct = c.color || c.text || c.bool;
       if (direct) {
