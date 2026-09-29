@@ -60,6 +60,7 @@ export class CrossingsVis extends Vis {
       if (!K.colourOn) continue;
       hue.setHSL(x.hue, K.saturation / 100, K.lightness / 100, THREE.SRGBColorSpace);
       x.c.lerp(hue, K.amount / 100);
+      x.obj._alpha = K.colourAlpha / 100;                           // colours are a little see-through too
     }
   }
   async start({ corpus }) {
