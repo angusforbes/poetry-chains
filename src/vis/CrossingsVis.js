@@ -31,9 +31,15 @@ export class CrossingsVis extends Vis {
   tint(obj, hue, tone, end = null) {
     if (!this.colour) return;
     const c = new THREE.Color();
-    this.inks.push({ c, hue, tone, end });                         // end: "first" or "last" line of its crossing
+    this.inks.push({ c, hue, tone, end, obj });                    // end: "first" or "last" line of its crossing
     this.recolour(this.inks.at(-1));
-    for (const m of obj.children) if (m.isMesh) m.material.color = c;
+    for (const m of obj.children) if (m.isMesh) {
+      m.material.color = c;
+      // a light line can be light by transparency: its letters are drawn at obj._alpha × their opacity
+      // (applied only while drawing, so fades, scrubbing and the live settings are untouched)
+      m.onBeforeRender = () => { m._raw = m.material.opacity; m.material.opacity *= obj._alpha ?? 1; };
+      m.onAfterRender = () => { m.material.opacity = m._raw; };
+    }
     obj._hue = hue;
   }
   recolour(one) {
@@ -43,7 +49,14 @@ export class CrossingsVis extends Vis {
       const black = !K.colourOn && ((x.end === "first" && K.firstBlack) || (x.end === "last" && K.lastBlack));
       // two tones: a share of lines in the lightest grey, the rest black; otherwise any grey up to it
       const tone = K.twoTone ? (x.tone < K.greyShare / 100 ? 1 : 0) : x.tone;
-      x.c.copy(ink).lerp(new THREE.Color(1, 1, 1), black ? 0 : tone * K.greyest / 100);   // its black or grey
+      const light = black ? 0 : tone;                              // 0 = black .. 1 = the lightest
+      x.obj._alpha = 1;
+      if (K.byAlpha && !K.colourOn) {                              // in the ink colour, see-through
+        x.c.copy(ink);
+        x.obj._alpha = 1 - light * (1 - K.greyAlpha / 100);
+        continue;
+      }
+      x.c.copy(ink).lerp(new THREE.Color(1, 1, 1), light * K.greyest / 100);   // its black or grey (shade)
       if (!K.colourOn) continue;
       hue.setHSL(x.hue, K.saturation / 100, K.lightness / 100, THREE.SRGBColorSpace);
       x.c.lerp(hue, K.amount / 100);

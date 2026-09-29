@@ -94,6 +94,8 @@ export const SCHEMA = {
     turn:       { v: 45,   min: 0, max: 90, step: 0.5, label: "turn" },
     twoTone:    { v: true, bool: true, label: "two tones" },
     greyShare:  { v: 50,   min: 0, max: 100, step: 1, label: "grey lines" },
+    byAlpha:    { v: true, bool: true, label: "light by transparency" },
+    greyAlpha:  { v: 25,   min: 0, max: 100, step: 1, label: "light lines' opacity" },
     greyest:    { v: 72,   min: 0, max: 100, step: 1, label: "lightest grey" },
     firstBlack: { v: true, bool: true, label: "first line black" },
     lastBlack:  { v: true, bool: true, label: "last line black" },
@@ -237,7 +239,9 @@ const PANEL = {
   "crossings-howe": { of: "crossings-howe", standalone: true, controls: [
     { label: "turn from the crossed line (± °)", keys: [["crossings-howe", "turn"]], min: 0, max: 90, step: 0.5, get: () => P["crossings-howe"].turn, set: (v) => (P["crossings-howe"].turn = v) },
     // each line its own black or grey (0% = all in the ink colour), and its own hue, mixed in by "colour"
-    { label: "lightest grey (%)", keys: [["crossings-howe", "greyest"]], min: 0, max: 100, step: 1, get: () => P["crossings-howe"].greyest, set: (v) => (P["crossings-howe"].greyest = v) },
+    { bool: ["crossings-howe", "byAlpha"], label: "light lines by transparency (not shade)" },
+    { label: "light lines' opacity (%, transparency)", keys: [["crossings-howe", "greyAlpha"]], min: 0, max: 100, step: 1, get: () => P["crossings-howe"].greyAlpha, set: (v) => (P["crossings-howe"].greyAlpha = v) },
+    { label: "lightest grey (%, shade)", keys: [["crossings-howe", "greyest"]], min: 0, max: 100, step: 1, get: () => P["crossings-howe"].greyest, set: (v) => (P["crossings-howe"].greyest = v) },
     { bool: ["crossings-howe", "twoTone"], label: "two tones: black and the lightest grey" },
     { label: "grey lines (% of lines, two tones)", keys: [["crossings-howe", "greyShare"]], min: 0, max: 100, step: 1, get: () => P["crossings-howe"].greyShare, set: (v) => (P["crossings-howe"].greyShare = v) },
     { bool: ["crossings-howe", "firstBlack"], label: "first line black (greys)" },
