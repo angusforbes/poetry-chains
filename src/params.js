@@ -59,6 +59,23 @@ export const SCHEMA = {
     zoom:         { v: 2.5,  min: 0.5, max: 8, step: 0.1, label: "framing" },
     hold:         { v: 3000, min: 0, max: 20000, step: 250, label: "linger" },
   },
+  // Crossings (2026, standalone page only): Howe × Lines, across and down like a crossword that is not clean
+  crossings: {
+    seed:       { v: "",   text: true, label: "begin with the word" },
+    steps:      { v: 14,   min: 2, max: 60, step: 1, label: "lines per crossing" },
+    skipCommon: { v: 60,   min: 0, max: 500, step: 5, label: "skip the commonest words" },
+    minLetters: { v: 3,    min: 1, max: 8, step: 1, label: "shortest word" },
+    rowGap:     { v: 70,   min: 0, max: 400, step: 5, label: "space around list rows" },
+    wobble:     { v: 30,   min: 0, max: 300, step: 5, label: "list wobble" },
+    misregister:{ v: 10,   min: 0, max: 120, step: 1, label: "off register" },
+    spread:     { v: 60,   min: 0, max: 100, step: 1, label: "toward open space" },
+    keepOnPage: { v: 85,   min: 0, max: 100, step: 1, label: "keep to the page" },
+    chance:     { v: 1.5,  min: 0, max: 10, step: 0.1, label: "chance" },
+    pageWidth:  { v: 4200, min: 1000, max: 20000, step: 100, label: "page width" },
+    olderInk:   { v: 100,  min: 0, max: 100, step: 1, label: "older lines ink" },
+    stepHold:   { v: 700,  min: 0, max: 10000, step: 50, label: "pause between lines" },
+    hold:       { v: 6000, min: 0, max: 30000, step: 250, label: "linger" },
+  },
   all: {
     intro:       { v: true, bool: true, label: "title card" },
     howeRepeats: { v: 6,    min: 0, max: 12, step: 1, label: "Howe scatters" },
@@ -160,6 +177,22 @@ const PANEL = {
     { label: "fill (%)", keys: [["howe", "zoom"]], min: 10, max: 150, step: 1, get: () => 100 / P.howe.zoom, set: (v) => (P.howe.zoom = 100 / v) },
     { label: "pause at the end (s)", keys: [["howe", "hold"]], min: 0, max: 20, step: 0.1, get: () => (P.howe.hold * sp()) / 1000, set: (v) => (P.howe.hold = (v * 1000) / sp()) },
   ] },
+  crossings: { of: "crossings", standalone: true, controls: [
+    { text: ["crossings", "seed"], label: "begin with the word" },
+    { label: "lines per crossing", keys: [["crossings", "steps"]], min: 2, max: 60, step: 1, get: () => P.crossings.steps, set: (v) => (P.crossings.steps = v) },
+    { label: "skip the commonest (words)", keys: [["crossings", "skipCommon"]], min: 0, max: 500, step: 5, get: () => P.crossings.skipCommon, set: (v) => (P.crossings.skipCommon = v) },
+    { label: "shortest word (letters)", keys: [["crossings", "minLetters"]], min: 1, max: 8, step: 1, get: () => P.crossings.minLetters, set: (v) => (P.crossings.minLetters = v) },
+    { label: "space around list rows (%)", keys: [["crossings", "rowGap"]], min: 0, max: 500, step: 5, get: () => (P.crossings.rowGap / P.look.lineHeight) * 100, set: (v) => (P.crossings.rowGap = (v * P.look.lineHeight) / 100) },
+    { label: "list wobble (%)", keys: [["crossings", "wobble"]], min: 0, max: 400, step: 5, get: () => (P.crossings.wobble / P.look.fontSize) * 100, set: (v) => (P.crossings.wobble = (v * P.look.fontSize) / 100) },
+    { label: "off register (%)", keys: [["crossings", "misregister"]], min: 0, max: 150, step: 1, get: () => (P.crossings.misregister / P.look.fontSize) * 100, set: (v) => (P.crossings.misregister = (v * P.look.fontSize) / 100) },
+    { label: "toward open space (%)", keys: [["crossings", "spread"]], min: 0, max: 100, step: 1, get: () => P.crossings.spread, set: (v) => (P.crossings.spread = v) },
+    { label: "keep to the page (%)", keys: [["crossings", "keepOnPage"]], min: 0, max: 100, step: 1, get: () => P.crossings.keepOnPage, set: (v) => (P.crossings.keepOnPage = v) },
+    { label: "chance (%)", keys: [["crossings", "chance"]], min: 0, max: 100, step: 1, get: () => P.crossings.chance * 10, set: (v) => (P.crossings.chance = v / 10) },
+    { label: "page width (lines)", keys: [["crossings", "pageWidth"]], min: 1, max: 15, step: 0.1, get: () => P.crossings.pageWidth / 1200, set: (v) => (P.crossings.pageWidth = v * 1200) },
+    { label: "older lines ink (%)", keys: [["crossings", "olderInk"]], min: 0, max: 100, step: 1, get: () => P.crossings.olderInk, set: (v) => (P.crossings.olderInk = v) },
+    { label: "pause between lines (s)", keys: [["crossings", "stepHold"]], min: 0, max: 10, step: 0.05, get: () => (P.crossings.stepHold * sp()) / 1000, set: (v) => (P.crossings.stepHold = (v * 1000) / sp()) },
+    { label: "pause at the end (s)", keys: [["crossings", "hold"]], min: 0, max: 30, step: 0.1, get: () => (P.crossings.hold * sp()) / 1000, set: (v) => (P.crossings.hold = (v * 1000) / sp()) },
+  ] },
   all: { of: "all", controls: [
     { bool: ["all", "intro"], label: "title card" },
     { label: "Howe scatters per cycle", keys: [["all", "howeRepeats"]], min: 0, max: 12, step: 1, get: () => P.all.howeRepeats, set: (v) => (P.all.howeRepeats = v) },
@@ -177,7 +210,7 @@ export function buildGui({ modes, current, onMode, onRestart, onPause, groups = 
   gui.add(ctl, "reset").name("back to the 2015 settings");
   const fire = (keys) => { writeUrl(); for (const [g, k] of keys) listeners.forEach((fn) => fn(g, k, P[g][k])); };
   for (const [name, sec] of Object.entries(PANEL)) {
-    if (groups && !groups.includes(sec.of)) continue;
+    if (groups ? !groups.includes(sec.of) : sec.standalone) continue;   // standalone pages' settings stay off the root page
     const folder = gui.addFolder(name);
     if (sec.of !== "look" && sec.of !== current && current !== "all") folder.close();
     for (const c of sec.controls) {
