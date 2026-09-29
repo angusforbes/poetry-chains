@@ -21,7 +21,9 @@ export class CrossingsVis extends Vis {
   async start({ corpus }) {
     const C = P.crossings, em = P.look.fontSize;
     this.parent = this.getParentObject();
-    const rowStep = P.look.lineHeight + C.rowGap;                 // a list's rows, at 100% leading
+    // a list's row step (at 100% leading) is drawn afresh for every new down line, between the tightest
+    // (rows overlapping) and the widest setting, and kept for the whole of that list
+    const drawStep = () => P.look.lineHeight + C.rowGapMin + rand() * (C.rowGapMax - C.rowGapMin);
     const aspect = this.camera.aspect || 1.6;
     const halfW = C.pageWidth / 2, halfH = C.pageWidth / aspect / 2;
 
@@ -36,7 +38,7 @@ export class CrossingsVis extends Vis {
     const seedWord = C.seed.trim().toLowerCase() && corpus.words.get(C.seed.trim().toLowerCase());
     const pool = seedWord ? [...new Set(seedWord.lines)] : corpus.lines;
     let line = pool[Math.floor(rand() * pool.length)];
-    let obj = this.makeLine(line, false, rowStep);
+    let obj = this.makeLine(line, false, 0);
     const w0 = line.text.length * ADV * em;
     this.place(obj, new THREE.Vector3(w0 / 2 + (rand() - 0.5) * halfW * 0.4, (rand() - 0.5) * halfH * 0.6, 0));
     shown.add(line);
@@ -47,6 +49,7 @@ export class CrossingsVis extends Vis {
 
     for (let step = 1; step < C.steps; step++) {
       await this.wait(C.stepHold);
+      const rowStep = drawStep();                                   // for this step's list, if it makes one
       const ctx = { shown, used, skip, rowStep, halfW, halfH, em, centres };
       let pick = this.choose(corpus, line, obj, across, arrived, ctx);
       // a dead end (no word here leads to a line not yet shown): go back to the latest line that has one
@@ -58,8 +61,7 @@ export class CrossingsVis extends Vis {
       if (!pick) break;                                             // nowhere left to go: finished
       const { word, next } = pick;
       used.add(word);
-      const down = across;                                          // the next line turns
-      const nobj = this.makeLine(next, down, rowStep);
+      const nobj = this.makeLine(next, across, rowStep);            // across now: the new line goes down
       // put the new line's copy of the word on the old one's, a little off register
       const a = this.wordAnchor(obj, word.word), b = this.wordAnchor(nobj, word.word);
       const mis = C.misregister;
