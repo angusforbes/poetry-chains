@@ -41,51 +41,109 @@ export class Stage {
     // what is drawn (view*) can differ from what is being built (scene/camera): a new recording is made
     // in a fresh scene while the previous one keeps playing
     this.renderer.setAnimationLoop(() => { if (!this.hold) this.draw(); });
-    this.pan = { x: 0, y: 0 };                        // the reader's own pan, in view heights (see draw)
     this.dragToPan();
   }
 
-  /** Draw, with the reader's pan applied to the camera for this frame only: the piece's own camera (its
-   *  moves, the recording, scrubbing) never sees it. The pan is kept in view heights, so a drag moves the
-   *  text with the pointer at any distance, and stays put in proportion as the camera zooms. */
+  /** The reader's own view (drag to pan, pinch or scroll to zoom), applied to the camera for each drawn
+   *  frame only: the piece's camera, the recording and scrubbing never see it. pan is in world units (so
+   *  the text stays under the finger), zoom divides the camera's distance (the letters are outlines, so
+   *  they stay sharp at any zoom). */
   draw() {
-    const scene = this.viewScene || this.scene, cam = this.viewCamera || this.camera;
-    const px = this.pan.x, py = this.pan.y;
-    if (!px && !py) return this.renderer.render(scene, cam);
-    const h = 2 * Math.abs(cam.position.z) * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2);
-    const x = cam.position.x, y = cam.position.y;
-    cam.position.x += px * h; cam.position.y += py * h;             // screen right is world -x (camera looks toward +z)
+    const scene = this.viewScene || this.scene, cam = this.viewCamera || this.camera, v = this.view;
+    if (!v.x && !v.y && v.zoom === 1) return this.renderer.render(scene, cam);
+    const p = cam.position.clone(), near = cam.near;
+    cam.position.x += v.x; cam.position.y += v.y; cam.position.z /= v.zoom;
+    // close in, the text would be nearer than the near plane (0.1) and cut away: bring the plane in too
+    cam.near = Math.min(near, Math.abs(cam.position.z) * 0.1); cam.updateProjectionMatrix();
     this.renderer.render(scene, cam);
-    cam.position.x = x; cam.position.y = y;
+    cam.position.copy(p); cam.near = near; cam.updateProjectionMatrix();
   }
-  /** click (or touch) and drag to pan the view; double-click / double-tap puts it back */
+  /** world units per CSS pixel on the text's plane, as the reader sees it now */
+  worldPerPx() {
+    const cam = this.viewCamera || this.camera;
+    const d = Math.abs(cam.position.z) / this.view.zoom, H = this.zoom ? this.zoom.H : this.viewH();
+    return (2 * d * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2)) / H / (window.visualViewport ? visualViewport.scale : 1);
+  }
+  get viewChanged() { const v = this.view; return !!(v.x || v.y || v.zoom !== 1); }
+  /** true while the piece should stand still: during a gesture, and (a setting) while the view is moved */
+  get frozen() { return this.touching || (P.look.stayPaused && this.viewChanged); }
+  resetView() { Object.assign(this.view, { x: 0, y: 0, zoom: 1 }); this.viewNote(); }
+  /** zoom by f about a point on screen (CSS px from the top-left), keeping that point under the pointer */
+  zoomAt(f, cx, cy) {
+    const v = this.view, z = Math.min(60, Math.max(0.3, v.zoom * f));
+    const r = this.renderer.domElement.getBoundingClientRect();
+    const sx = cx - (r.left + r.width / 2), sy = cy - (r.top + r.height / 2);
+    const before = this.worldPerPx();
+    v.zoom = z;
+    const after = this.worldPerPx();
+    v.x += sx * (after - before); v.y += sy * (after - before);      // screen right is world -x, down is -y
+  }
+  panBy(dx, dy) { const k = this.worldPerPx(); this.view.x += dx * k; this.view.y += dy * k; }
+  viewNote() {
+    if (!this.note) {
+      this.note = document.createElement("div");
+      Object.assign(this.note.style, { position: "fixed", top: "10px", left: "50%", transform: "translateX(-50%)", font: "italic 13px Georgia, serif",
+        color: "#888", pointerEvents: "none", zIndex: 5, display: "none", background: "rgba(255,255,255,0.7)", padding: "2px 8px", borderRadius: "4px" });
+      document.body.appendChild(this.note);
+    }
+    const show = P.look.stayPaused && this.viewChanged;
+    this.note.textContent = "paused · double-click (or double-tap) to go back and play";
+    this.note.style.display = show ? "block" : "none";
+  }
+  /** mouse: drag pans; wheel pans, ctrl/⌘-wheel (a trackpad pinch) zooms. touch: one finger pans, two pinch.
+   *  double-click / double-tap: back to the piece's own view (and it plays on). */
   dragToPan() {
-    const el = this.renderer.domElement;
-    el.style.touchAction = "pinch-zoom";                             // one finger pans the view, two still zoom the page
-    let last = null, tap = 0;
+    this.view = { x: 0, y: 0, zoom: 1 };
+    this.touching = false;
+    const el = this.renderer.domElement, pts = new Map();
+    el.style.touchAction = "none";                                  // the page doesn't zoom or scroll: the piece does
+    let tap = 0, prev = null, wheelEnd = 0;
+    const on = () => P.look.drag;
+    const mid = () => { const a = [...pts.values()]; return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2, d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) }; };
     el.addEventListener("pointerdown", (e) => {
-      if (!P.look.drag || !e.isPrimary) return;
-      const now = performance.now();
-      if (now - tap < 300) { this.pan.x = this.pan.y = 0; tap = 0; return; }   // double tap
-      tap = now;
-      last = { x: e.clientX, y: e.clientY };
+      if (!on()) return;
+      const t = performance.now();
+      if (pts.size === 0 && t - tap < 300) { this.resetView(); tap = 0; return; }   // double tap
+      if (pts.size === 0) tap = t;
+      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
       el.setPointerCapture(e.pointerId);
+      this.touching = true;
+      prev = pts.size === 2 ? mid() : null;
       el.style.cursor = "grabbing";
     });
     el.addEventListener("pointermove", (e) => {
-      if (!last) return;
-      const H = this.zoom ? this.zoom.H : this.viewH();
-      // pointer pixels → view heights (while pinch-zoomed, the page's pixels are magnified by the zoom)
-      const k = 1 / (H * (window.visualViewport ? visualViewport.scale : 1));
-      this.pan.x += (e.clientX - last.x) * k;
-      this.pan.y += (e.clientY - last.y) * k;
-      last = { x: e.clientX, y: e.clientY };
+      const p = pts.get(e.pointerId);
+      if (!p) return;
+      if (pts.size === 1) this.panBy(e.clientX - p.x, e.clientY - p.y);
+      p.x = e.clientX; p.y = e.clientY;
+      if (pts.size === 2) {
+        const m = mid();
+        if (prev) { this.panBy(m.x - prev.x, m.y - prev.y); if (prev.d > 0) this.zoomAt(m.d / prev.d, m.x, m.y); }
+        prev = m;
+      }
+      this.viewNote();
     });
-    const end = () => { last = null; el.style.cursor = P.look.drag ? "grab" : ""; };
+    const end = (e) => {
+      pts.delete(e.pointerId);
+      prev = pts.size === 2 ? mid() : null;
+      if (!pts.size) { this.touching = false; el.style.cursor = on() ? "grab" : ""; }
+    };
     el.addEventListener("pointerup", end);
     el.addEventListener("pointercancel", end);
-    el.addEventListener("dblclick", () => { this.pan.x = this.pan.y = 0; });
-    el.style.cursor = P.look.drag ? "grab" : "";
+    el.addEventListener("dblclick", () => this.resetView());
+    el.addEventListener("wheel", (e) => {
+      if (!on()) return;
+      e.preventDefault();
+      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
+      if (e.ctrlKey || e.metaKey) this.zoomAt(Math.exp(-e.deltaY * unit * 0.005), e.clientX, e.clientY);
+      else this.panBy(-e.deltaX * unit, -e.deltaY * unit);
+      // a wheel has no "up": the gesture counts as over a moment after the last event
+      this.touching = true;
+      const my = (wheelEnd = performance.now());
+      setTimeout(() => { if (wheelEnd === my && !pts.size) this.touching = false; }, 400);
+      this.viewNote();
+    }, { passive: false });
+    el.style.cursor = on() ? "grab" : "";
   }
 
   applyLook() {

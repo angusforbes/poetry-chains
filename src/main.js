@@ -183,9 +183,10 @@ async function drive() {
     const t = await new Promise(requestAnimationFrame);
     const dt = Math.min(100, t - last);
     last = t;
-    if (!CFG.controls) { if (!window.__pcHold) await advanceTo(now() + dt * T.rate); continue; }   // plain pages: the live performance
+    // the piece stands still while the reader zooms or pans (and, a setting, until the view is put back)
+    if (!CFG.controls) { if (!window.__pcHold && !stage.frozen) await advanceTo(now() + dt * T.rate); continue; }   // plain pages: the live performance
     if (!REC) continue;
-    if (!T.paused) {
+    if (!T.paused && !stage.frozen) {
       let nt = T.t + dt * T.rate;
       if (nt >= T.duration) { nt = T.duration; setPaused(true); }
       show(nt);
@@ -334,7 +335,7 @@ async function boot() {
     const liveCamera = (g === "look" && ["fov", "fitMargin"].includes(k)) || (g === "colocation" && k === "fitScale") || (g === "howe" && k === "zoom") || (g === "crossings" && k === "lean");
     const recolour = (g === "crossings-howe" && ["roleTone", "byAlpha", "greyAlpha", "greyest", "twoTone", "greyShare", "firstBlack", "lastBlack", "colourOn", "colourAlpha", "amount", "saturation", "lightness"].includes(k)) || (g === "look" && k === "textColor");
     if (recolour && vis["crossings-howe"]) vis["crossings-howe"].recolour();   // the lines' own colours, live
-    if (g === "look" && k === "drag") { stage.renderer.domElement.style.cursor = P.look.drag ? "grab" : ""; if (!P.look.drag) stage.pan.x = stage.pan.y = 0; return; }
+    if (g === "look" && (k === "drag" || k === "stayPaused")) { stage.renderer.domElement.style.cursor = P.look.drag ? "grab" : ""; if (!P.look.drag) stage.resetView(); stage.viewNote(); return; }
     if (g === "look" && ["textColor", "background", "fov"].includes(k)) { stage.applyLook(); T.dirty = true; }
     else if (recolour) T.dirty = true;
     else if (liveCamera) T.dirty = true;
