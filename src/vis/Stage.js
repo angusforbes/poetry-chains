@@ -40,7 +40,52 @@ export class Stage {
     this.layoutPos = (o, p, out) => out.copy(p);      // where an object sits under the current layout
     // what is drawn (view*) can differ from what is being built (scene/camera): a new recording is made
     // in a fresh scene while the previous one keeps playing
-    this.renderer.setAnimationLoop(() => { if (!this.hold) this.renderer.render(this.viewScene || this.scene, this.viewCamera || this.camera); });
+    this.renderer.setAnimationLoop(() => { if (!this.hold) this.draw(); });
+    this.pan = { x: 0, y: 0 };                        // the reader's own pan, in view heights (see draw)
+    this.dragToPan();
+  }
+
+  /** Draw, with the reader's pan applied to the camera for this frame only: the piece's own camera (its
+   *  moves, the recording, scrubbing) never sees it. The pan is kept in view heights, so a drag moves the
+   *  text with the pointer at any distance, and stays put in proportion as the camera zooms. */
+  draw() {
+    const scene = this.viewScene || this.scene, cam = this.viewCamera || this.camera;
+    const px = this.pan.x, py = this.pan.y;
+    if (!px && !py) return this.renderer.render(scene, cam);
+    const h = 2 * Math.abs(cam.position.z) * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2);
+    const x = cam.position.x, y = cam.position.y;
+    cam.position.x += px * h; cam.position.y += py * h;             // screen right is world -x (camera looks toward +z)
+    this.renderer.render(scene, cam);
+    cam.position.x = x; cam.position.y = y;
+  }
+  /** click (or touch) and drag to pan the view; double-click / double-tap puts it back */
+  dragToPan() {
+    const el = this.renderer.domElement;
+    el.style.touchAction = "pinch-zoom";                             // one finger pans the view, two still zoom the page
+    let last = null, tap = 0;
+    el.addEventListener("pointerdown", (e) => {
+      if (!P.look.drag || !e.isPrimary) return;
+      const now = performance.now();
+      if (now - tap < 300) { this.pan.x = this.pan.y = 0; tap = 0; return; }   // double tap
+      tap = now;
+      last = { x: e.clientX, y: e.clientY };
+      el.setPointerCapture(e.pointerId);
+      el.style.cursor = "grabbing";
+    });
+    el.addEventListener("pointermove", (e) => {
+      if (!last) return;
+      const H = this.zoom ? this.zoom.H : this.viewH();
+      // pointer pixels → view heights (while pinch-zoomed, the page's pixels are magnified by the zoom)
+      const k = 1 / (H * (window.visualViewport ? visualViewport.scale : 1));
+      this.pan.x += (e.clientX - last.x) * k;
+      this.pan.y += (e.clientY - last.y) * k;
+      last = { x: e.clientX, y: e.clientY };
+    });
+    const end = () => { last = null; el.style.cursor = P.look.drag ? "grab" : ""; };
+    el.addEventListener("pointerup", end);
+    el.addEventListener("pointercancel", end);
+    el.addEventListener("dblclick", () => { this.pan.x = this.pan.y = 0; });
+    el.style.cursor = P.look.drag ? "grab" : "";
   }
 
   applyLook() {

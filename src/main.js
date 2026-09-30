@@ -334,6 +334,7 @@ async function boot() {
     const liveCamera = (g === "look" && ["fov", "fitMargin"].includes(k)) || (g === "colocation" && k === "fitScale") || (g === "howe" && k === "zoom") || (g === "crossings" && k === "lean");
     const recolour = (g === "crossings-howe" && ["roleTone", "byAlpha", "greyAlpha", "greyest", "twoTone", "greyShare", "firstBlack", "lastBlack", "colourOn", "colourAlpha", "amount", "saturation", "lightness"].includes(k)) || (g === "look" && k === "textColor");
     if (recolour && vis["crossings-howe"]) vis["crossings-howe"].recolour();   // the lines' own colours, live
+    if (g === "look" && k === "drag") { stage.renderer.domElement.style.cursor = P.look.drag ? "grab" : ""; if (!P.look.drag) stage.pan.x = stage.pan.y = 0; return; }
     if (g === "look" && ["textColor", "background", "fov"].includes(k)) { stage.applyLook(); T.dirty = true; }
     else if (recolour) T.dirty = true;
     else if (liveCamera) T.dirty = true;
