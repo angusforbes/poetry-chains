@@ -14,7 +14,8 @@ export const SCHEMA = {
     letterStagger:{ v: 10,    min: 0, max: 200, step: 1, label: "letter stagger" },
     letterSpacing:{ v: 0,     min: -20, max: 60, step: 1, label: "letter spacing" },
     drag:         { v: true,  bool: true, label: "drag to pan, pinch to zoom" },
-    stayPaused:   { v: true,  bool: true, label: "stay paused while zoomed or panned" },
+    stayPaused:   { v: false, bool: true, label: "stay paused while zoomed or panned" },
+    dblReset:     { v: false, bool: true, label: "double-click resets the view" },
     fontSize:     { v: 72,    min: 24, max: 200, step: 1, label: "type size" , hidden: true },
     lineHeight:   { v: 82,    min: 20, max: 300, step: 1, label: "line height" },
     baseline:     { v: 56,    min: 10, max: 300, step: 1, label: "baseline" , hidden: true },
@@ -176,7 +177,8 @@ const PANEL = {
   ] },
   camera: { of: "look", controls: [
     { bool: ["look", "drag"], label: "drag to pan, pinch / ctrl-scroll to zoom" },
-    { bool: ["look", "stayPaused"], label: "stay paused while zoomed or panned (double-click plays)" },
+    { bool: ["look", "stayPaused"], label: "stay paused while zoomed or panned (off: only while touching)" },
+    { bool: ["look", "dblReset"], label: "double-click / double-tap resets the view" },
     { label: "fill (%)", keys: [["look", "fitMargin"]], min: 20, max: 150, step: 1, get: () => 100 / P.look.fitMargin, set: (v) => (P.look.fitMargin = 100 / v) },
   ] },
   page: { of: "look", controls: [

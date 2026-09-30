@@ -87,11 +87,12 @@ export class Stage {
       document.body.appendChild(this.note);
     }
     const show = P.look.stayPaused && this.viewChanged;
-    this.note.textContent = "paused · double-click (or double-tap) to go back and play";
+    this.note.textContent = P.look.dblReset ? "paused · double-click (or double-tap) to go back and play" : "paused while zoomed or panned (a setting)";
     this.note.style.display = show ? "block" : "none";
   }
   /** mouse: drag pans; wheel pans, ctrl/⌘-wheel (a trackpad pinch) zooms. touch: one finger pans, two pinch.
-   *  double-click / double-tap: back to the piece's own view (and it plays on). */
+   *  The view you leave it at stays (it keeps playing, offset and zoomed as you left it); with a setting,
+   *  double-click / double-tap puts it back to the piece's own view. */
   dragToPan() {
     this.view = { x: 0, y: 0, zoom: 1 };
     this.touching = false;
@@ -103,7 +104,7 @@ export class Stage {
     el.addEventListener("pointerdown", (e) => {
       if (!on()) return;
       const t = performance.now();
-      if (pts.size === 0 && t - tap < 300) { this.resetView(); tap = 0; return; }   // double tap
+      if (pts.size === 0 && t - tap < 300 && P.look.dblReset) { this.resetView(); tap = 0; return; }   // double tap
       if (pts.size === 0) tap = t;
       pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
       el.setPointerCapture(e.pointerId);
@@ -130,7 +131,7 @@ export class Stage {
     };
     el.addEventListener("pointerup", end);
     el.addEventListener("pointercancel", end);
-    el.addEventListener("dblclick", () => this.resetView());
+    el.addEventListener("dblclick", () => { if (P.look.dblReset) this.resetView(); });
     el.addEventListener("wheel", (e) => {
       if (!on()) return;
       e.preventDefault();
