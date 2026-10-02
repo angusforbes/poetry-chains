@@ -2,8 +2,8 @@
 // drawn frame only (the piece's camera, its recordings and scrubbing never see it). Made for any 3D text
 // project: give it the canvas and it works on whatever camera you draw with.
 //
-//   mouse      drag pans · shift-drag spins · wheel / two-finger scroll pans (shift: spins)
-//              ctrl/⌘-wheel or a trackpad pinch zooms about the pointer
+//   mouse      drag pans · shift-drag spins · the wheel zooms, straight in and out along the camera's
+//              own axis (a trackpad pinch too) · shift-wheel spins · alt-wheel pans
 //   touch      one finger pans (or spins, with `swap`) · two fingers pan and pinch-zoom
 //   (setting)  double-click / double-tap puts the view back
 //
@@ -85,6 +85,8 @@ export class ViewControls {
     const after = this.worldPerPx();
     this.panWorld(sx * (after - before), sy * (after - before));
   }
+  /** zoom by f straight along the camera's own axis (toward the middle of the screen) */
+  zoomBy(f) { this.view.zoom = Math.min(60, Math.max(0.3, this.view.zoom * f)); }
   /** spin by a drag of (dx, dy) px: across the whole view's height is half a turn */
   spinBy(dx, dy) {
     const k = Math.PI / this.o.viewHeight();
@@ -133,9 +135,9 @@ export class ViewControls {
       if (!o.enabled()) return;
       e.preventDefault();
       const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
-      if (e.ctrlKey || e.metaKey) this.zoomAt(Math.exp(-e.deltaY * unit * 0.005), e.clientX, e.clientY);
-      else if (e.shiftKey) this.spinBy(-e.deltaX * unit, -e.deltaY * unit);   // (with shift, some browsers turn a vertical wheel into deltaX)
-      else this.panBy(-e.deltaX * unit, -e.deltaY * unit);
+      if (e.shiftKey) this.spinBy(-e.deltaX * unit, -e.deltaY * unit);        // (with shift, some browsers turn a vertical wheel into deltaX)
+      else if (e.altKey) this.panBy(-e.deltaX * unit, -e.deltaY * unit);
+      else this.zoomBy(Math.exp(-(e.deltaY || e.deltaX) * unit * ((e.ctrlKey || e.metaKey) ? 0.01 : 0.002)));   // a pinch sends small steps
       // a wheel has no "up": the gesture counts as over a moment after the last event
       touch(true);
       const my = (wheelEnd = performance.now());

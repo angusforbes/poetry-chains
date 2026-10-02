@@ -76,7 +76,8 @@ export class Stage {
     this.note.textContent = P.look.dblReset ? "paused · double-click (or double-tap) to go back and play" : "paused while zoomed or panned (a setting)";
     this.note.style.display = show ? "block" : "none";
   }
-  /** mouse: drag pans, shift-drag spins; wheel pans, ctrl/⌘-wheel (a trackpad pinch) zooms. touch: one
+  /** mouse: drag pans, shift-drag spins; the wheel (and a trackpad pinch) zooms along the camera's axis,
+   *  shift-wheel spins, alt-wheel pans. touch: one
    *  finger pans (or spins: a setting), two pan and pinch. The view you leave it at stays (it keeps
    *  playing, offset as you left it); with a setting, double-click / double-tap puts it back. */
   dragToPan() {

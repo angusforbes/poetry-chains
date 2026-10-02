@@ -204,7 +204,7 @@ export class CrossingsVis extends Vis {
         // 3D: the camera starts to turn toward a line as it begins to be written (it may arrive midway or
         // after); with a setting, it turns first and the writing waits until it faces the line
         if (D && D.waitCam) await Promise.all([this.wait(delay), this.faceLine(nobj, D.camMove)]);
-        else { await this.wait(delay); if (D) this.faceLine(nobj, D.camMove); }
+        else { await this.wait(delay); if (D) this.wait(D.camAfter).then(() => this.faceLine(nobj, D.camMove)); }
         placed.splice(placed.indexOf(null), 1);
         if (C.olderInk < 100) this.fadeAll(placed.filter(Boolean), C.olderInk / 100, 1000);
         await this.inkIn(nobj, placed, word.word, pace);
