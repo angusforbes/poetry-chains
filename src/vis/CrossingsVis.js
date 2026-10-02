@@ -13,18 +13,29 @@ import * as THREE from "three";
 import { rand } from "../rng.js";
 import { Vis } from "./Stage.js";
 import { P } from "../params.js";
-import { tween, wait } from "./tween.js";
+import { tween, wait, now } from "./tween.js";
+import { seed } from "../rng.js";
+import { ViewControls } from "./ViewControls.js";
 
 const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
 const ADV = 0.45;          // an average letter advance, in ems, for estimating where a line would reach
 
 const Z = new THREE.Vector3(0, 0, 1), DEG = Math.PI / 180;
+const Xa = new THREE.Vector3(1, 0, 0), Ya = new THREE.Vector3(0, 1, 0);
+const TURN = new THREE.Quaternion().setFromAxisAngle(Ya, Math.PI);   // a line's front faces its own -z: a camera facing it is turned half round
+const sineInOut = (t) => 0.5 - 0.5 * Math.cos(Math.PI * t);
+/** a second, independent stream of randomness (mulberry32), so 3D adds nothing to the flat piece's draws */
+const stream = (k) => { let s = k >>> 0 || 1; return () => { s |= 0; s = (s + 0x6d2b79f5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; };
 
 export class CrossingsVis extends Vis {
   /** turn(): ± degrees each new line may turn from the line it crosses (0: across and down only).
    *  Crossings (Howe) uses it: turns add up, so later lines can stand at steep angles. */
   /** fade(): Crossings (Howe)'s settings for "one stays, the rest fade" (null: every new line stays) */
-  constructor(stage, { turn = () => 0, colour = null, fade = null } = {}) { super(stage); this.turn = turn; this.colour = colour; this.fade = fade; this.inks = []; }
+  /** depth(): Crossings in 3D: its settings (null: flat). See the 3D section at the end. */
+  constructor(stage, { turn = () => 0, colour = null, fade = null, depth = null } = {}) {
+    super(stage); this.turn = turn; this.colour = colour; this.fade = fade; this.depth = depth; this.inks = [];
+    if (depth) stage.drawHooks.push((scene, cam) => this.drawHook(scene, cam));
+  }
 
   /** Tone (Crossings (Howe)): every line gets its own black or grey (tone 0 = black .. 1 = the lightest
    *  grey setting) and its own hue, a turn of the colour wheel from the line it crosses; "colour" mixes
@@ -67,7 +78,13 @@ export class CrossingsVis extends Vis {
   }
   async start({ corpus }) {
     const C = P.crossings, em = P.look.fontSize;
+    const D = this.depth ? this.depth() : null;
+    this.running = !!D;
     this.parent = this.getParentObject();
+    // 3D: each line's swing out of the page comes from its own stream (seeded by the run's seed and this
+    // crossing's start), so the flat choices are exactly those of the flat piece with the same seed
+    const tilt = D ? stream(seed * 7919 + Math.round(now())) : null;
+    const follow = C.follow && !D;
     // Spacing is drawn afresh for every line and kept for the whole of it: the rows of a down list, the
     // spaces between the words of a line across. Mostly cramped (overlapping at the tight end), otherwise
     // from normal up to the widest (at most twice normal).
@@ -79,7 +96,7 @@ export class CrossingsVis extends Vis {
 
     // still camera: it frames the page once and stays there (following: see follow())
     const s = this.scaleText, page = new THREE.Box3(new THREE.Vector3(-halfW * s, -halfH * s, 0), new THREE.Vector3(halfW * s, halfH * s, 0));
-    if (!C.follow) await this.fitTo(page, (b) => this.getZoomDistanceFromBox(b, this.scaleOf()), 10);
+    if (!C.follow && !D) await this.fitTo(page, (b) => this.getZoomDistanceFromBox(b, this.scaleOf()), 10);
 
     const shown = new Set(), used = new Set(), placed = [];
     const skip = (w) => !w || !w.word || w.word === "—" || w.rank <= C.skipCommon || w.word.length < C.minLetters;
@@ -97,9 +114,11 @@ export class CrossingsVis extends Vis {
     const w0 = line0.text.length * ADV * em;
     this.place(obj0, new THREE.Vector3(w0 / 2 + (rand() - 0.5) * halfW * 0.4, (rand() - 0.5) * halfH * 0.6, 0));
     shown.add(line0);
-    if (C.follow) { this.parent.add(obj0); this.follow([obj0], obj0, 10); }
+    obj0._rot = 0;
+    if (follow) { this.parent.add(obj0); this.follow([obj0], obj0, 10); }
+    if (D) this.faceLine(obj0, 10);
     await this.inkIn(obj0, placed, null, 1);
-    const centres = [{ x: -obj0._p0.x + w0 / 2, y: obj0._p0.y }];  // where each line sits (screen x, text units)
+    const centres = [{ x: -obj0._f0.x + w0 / 2, y: obj0._f0.y }];  // where each line sits (screen x, text units)
 
     // Growth: as soon as a line is written, it sets off 1..3 new lines (from different words of it, or
     // twice through the same word), until the crossing has C.maxLines lines. Each new line starts after its own
@@ -133,15 +152,33 @@ export class CrossingsVis extends Vis {
       const jobs = births.map(async ({ pick, rowStep, last, fades }) => {
         const { word } = pick;
         const nobj = this.makeLine(pick.next, from.across, rowStep, drawWords());   // across → down, down → across
-        nobj.rotation.z = pick.rot;
+        nobj._rot = pick.rot;
         // the new line's copy of the word on the old one's, a little off register (each turned with its line)
         const a = this.wordAnchor(from.obj, word.word), b = this.wordAnchor(nobj, word.word);
-        const ra = from.obj.rotation.z, rb = pick.rot;
-        for (const k of ["pos", "p0"]) { a[k].applyAxisAngle(Z, ra); b[k].applyAxisAngle(Z, rb); }
+        const ra = from.obj._rot, rb = pick.rot;
         const mis = C.misregister;
         const off = new THREE.Vector3((rand() - 0.5) * 2 * mis, (rand() - 0.5) * 2 * mis, 0);
-        nobj.position.copy(from.obj.position).add(a.pos).sub(b.pos).add(off.clone().multiply(new THREE.Vector3(1, P.look.leading, 1)));
-        nobj._p0 = (from.obj._p0 || from.obj.position).clone().add(a.p0).sub(b.p0).add(off);
+        // the flat layout (where the flat piece would put it): the choices are made from that, in 3D too
+        nobj._f0 = from.obj._f0.clone().add(a.p0.clone().applyAxisAngle(Z, ra)).sub(b.p0.clone().applyAxisAngle(Z, rb)).add(off);
+        if (!D) {
+          nobj.rotation.z = pick.rot;
+          for (const k of ["pos", "p0"]) { a[k].applyAxisAngle(Z, ra); b[k].applyAxisAngle(Z, rb); }
+          nobj.position.copy(from.obj.position).add(a.pos).sub(b.pos).add(off.clone().multiply(new THREE.Vector3(1, P.look.leading, 1)));
+          nobj._p0 = nobj._f0.clone();
+        } else {
+          // 3D: the same turn within the crossed line's plane, then a swing out of it about the new line's
+          // other axis (a list, running down, swings about its across axis; a line across about its up axis),
+          // so the line leaves the page. Turns and swings add up from line to line, as a mobile's arms do.
+          const swing = (tilt() * 2 - 1) * D.tilt * DEG;
+          const q = from.obj.quaternion.clone().multiply(new THREE.Quaternion().setFromAxisAngle(Z, rb - ra))
+            .multiply(new THREE.Quaternion().setFromAxisAngle(from.across ? Xa : Ya, swing));
+          nobj.quaternion.copy(q);
+          nobj._pivot = b.pos.clone();                              // where it crosses (for lines that turn to face you)
+          for (const k of ["pos", "p0"]) { a[k].applyQuaternion(from.obj.quaternion); b[k].applyQuaternion(q); }
+          const offQ = off.clone().applyQuaternion(from.obj.quaternion);
+          nobj.position.copy(from.obj.position).add(a.pos).sub(b.pos).add(offQ.clone().multiply(new THREE.Vector3(1, P.look.leading, 1)));
+          nobj._p0 = from.obj._p0.clone().add(a.p0).sub(b.p0).add(offQ);
+        }
         // its own pace: around the usual (±paceVary), or, for a share of lines, much slower
         let pace = Math.pow(2, (rand() * 2 - 1) * Math.log2(1 + C.paceVary / 100));   // e.g. ±60%: ×0.63 .. ×1.6
         const slow = rand() < C.slowShare / 100, u = rand();
@@ -157,18 +194,20 @@ export class CrossingsVis extends Vis {
         if (fades) {                                                // written, then fades away, and is gone
           await this.wait(delay);
           await this.inkIn(nobj, fading, word.word, pace);
-          if (C.follow) this.lineDone(nobj);
+          if (follow) this.lineDone(nobj);
           await this.fadeOut(nobj, fades);
           if (fading.includes(nobj)) fading.splice(fading.indexOf(nobj), 1);
           if (nobj.parent) nobj.parent.remove(nobj);
           return;
         }
         trail.push(t);
-        await this.wait(delay);
+        // 3D: the camera turns to face it as it begins (and, a setting, the writing waits until it has)
+        const facing = D ? this.faceLine(nobj, D.camMove) : null;
+        await (D && D.waitCam ? Promise.all([this.wait(delay), facing]) : this.wait(delay));
         placed.splice(placed.indexOf(null), 1);
         if (C.olderInk < 100) this.fadeAll(placed.filter(Boolean), C.olderInk / 100, 1000);
         await this.inkIn(nobj, placed, word.word, pace);
-        if (C.follow) this.lineDone(nobj);
+        if (follow) this.lineDone(nobj);
         return grow(t, depth + 1);
       });
       await Promise.all(jobs.filter((j, i) => !births[i].fades));
@@ -178,7 +217,7 @@ export class CrossingsVis extends Vis {
     // before it is finished, and the camera moves as soon as written letters are out, not only at ends
     let growing = true;
     const watch = (async () => {
-      while (C.follow && growing) {
+      while (follow && growing) {
         await this.wait(C.camCheck);
         if (growing) this.check();
       }
@@ -193,7 +232,8 @@ export class CrossingsVis extends Vis {
     }
     growing = false;
     await watch;
-    if (C.follow) { await this.cam.busy; await this.follow(placed.filter(Boolean), null, C.camMove * 1.5); }   // at the end: the whole poem
+    if (follow) { await this.cam.busy; await this.follow(placed.filter(Boolean), null, C.camMove * 1.5); }   // at the end: the whole poem
+    if (D) await this.overview(placed.filter(Boolean), D);         // 3D: stand back and walk round it
     await this.wait(C.hold);
     await this.fadeAll(this.parent.children, 0, 2000);
     this.parent.remove(...this.parent.children);
@@ -255,6 +295,7 @@ export class CrossingsVis extends Vis {
 
   place(obj, p0) {
     obj._p0 = p0.clone();
+    obj._f0 = p0.clone();
     obj.position.copy(p0);
   }
 
@@ -330,7 +371,7 @@ export class CrossingsVis extends Vis {
   /** the next word (from this line) and line (holding that word): new places first, and on the page */
   choose(corpus, line, obj, across, arrived, { shown, used, skip, rowStep, halfW, halfH, em, centres }) {
     const C = P.crossings, adv = ADV * em;
-    const base = obj._p0 || obj.position, rot = obj.rotation.z, t = this.turn();
+    const base = obj._f0, rot = obj._rot, t = this.turn();
     // this line's turn, relative to the one it crosses (drawn only when turning, so plain Crossings keeps its runs)
     const nrot = t ? rot + (rand() * 2 - 1) * t * DEG : rot;
     const cs = Math.cos(-nrot), sn = Math.sin(-nrot);               // on screen, x is mirrored: turn the other way
@@ -376,5 +417,117 @@ export class CrossingsVis extends Vis {
       }
     }
     return best;
+  }
+
+  /* ── 3D (Crossings in 3D) ─────────────────────────────────────────────────────────────────────────
+     The lines hang in space like the arms of a mobile: each turns within the plane of the line it
+     crosses and swings out of it. The camera turns to face each line that stays as it begins, reading
+     it head-on (upright with it, or level), arcing from one to the next and standing back a little on
+     the way, so the sculpture shows its depth as it turns; at the end it stands back and walks round
+     the whole. Its moves run on their own channel ("camera3": position, turn and how far ahead it
+     looks), so recordings and scrubbing replay them exactly. */
+
+  /** a line as it sits now: the middle of its letters (world), its turn, its width and height (world) */
+  lineFrame(obj) {
+    const box = new THREE.Box3(), b = new THREE.Box3();
+    for (const m of obj.children) if (m.isMesh && m.geometry.boundingBox) { m.updateMatrix(); box.union(b.copy(m.geometry.boundingBox).applyMatrix4(m.matrix)); }
+    obj.updateMatrix(); this.parent.updateMatrix();
+    const size = box.getSize(new THREE.Vector3()).multiplyScalar(this.parent.scale.x);
+    const centre = box.getCenter(new THREE.Vector3()).applyMatrix4(obj.matrix).applyMatrix4(this.parent.matrix);
+    return { centre, q: obj.quaternion.clone(), w: size.x, h: size.y };
+  }
+  /** how far back to stand for a w × h rectangle to just fill the frame */
+  fitDist(w, h) { const v = THREE.MathUtils.degToRad(this.camera.fov) / 2; return Math.max(w / 2 / Math.tan(this.hFov()), h / 2 / Math.tan(v)); }
+  /** the same view direction, turned so the camera is level (its up as near the world's up as it can be) */
+  level(q) {
+    const f = new THREE.Vector3(0, 0, -1).applyQuaternion(q);
+    return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().lookAt(new THREE.Vector3(), f, Ya));
+  }
+  /** One camera move: from where it is (and the point it looks at) to goal() = { pivot, q, d }: look at
+   *  pivot from d away, turned q. Arcs about the moving pivot; swing: stands back by that share midway. */
+  moveCamera(goal, duration, swing = 0, ease) {
+    const cam = this.camera;
+    return tween({ duration: duration * this.speed, target: cam, channel: "camera3", ease,
+      init: () => {
+        const d0 = ViewControls.dist(cam), q0 = cam.quaternion.clone();
+        const p0 = cam.position.clone().add(new THREE.Vector3(0, 0, -1).applyQuaternion(q0).multiplyScalar(d0));
+        const g = goal(), q = new THREE.Quaternion(), p = new THREE.Vector3(), back = new THREE.Vector3();
+        return (t) => {
+          q.slerpQuaternions(q0, g.q, t);
+          const d = (d0 + (g.d - d0) * t) * (1 + swing * Math.sin(Math.PI * t));
+          p.lerpVectors(p0, g.pivot, t);
+          cam.quaternion.copy(q);
+          cam.position.copy(p).add(back.set(0, 0, 1).applyQuaternion(q).multiplyScalar(d));
+          cam.userData.dist = d;
+        };
+      } });
+  }
+  /** turn to face a line head-on (or from the reading angle), near enough that it fills its share of the frame */
+  faceLine(obj, duration) {
+    const D = this.depth();
+    return this.moveCamera(() => {
+      const f = this.lineFrame(obj);
+      let q = f.q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(Ya, D.angle * DEG)).multiply(TURN);
+      if (!D.roll) q = this.level(q);
+      return { pivot: f.centre, q, d: this.fitDist(f.w, f.h) * 100 / D.lineFill };
+    }, duration, D.swing / 100);
+  }
+  /** the end: stand back (level) until the whole sculpture fits, then walk round it about the upright */
+  async overview(lines, D) {
+    this.parent.updateMatrixWorld(true);
+    // every letter's corners; the walk goes round the upright through their middle, so the camera stands
+    // back far enough for the widest reach from that upright (any side) and the tallest above or below it
+    const pts = [], b = new THREE.Box3(), box = new THREE.Box3();
+    for (const l of lines) for (const m of l.children) if (m.isMesh && m.geometry.boundingBox) {
+      b.copy(m.geometry.boundingBox);
+      for (const x of [b.min.x, b.max.x]) for (const y of [b.min.y, b.max.y]) pts.push(new THREE.Vector3(x, y, 0).applyMatrix4(m.matrixWorld));
+    }
+    if (!pts.length) return;
+    box.setFromPoints(pts);
+    const c = box.getCenter(new THREE.Vector3());
+    let reach = 0, tall = 0;
+    for (const q of pts) { reach = Math.max(reach, Math.hypot(q.x - c.x, q.z - c.z)); tall = Math.max(tall, Math.abs(q.y - c.y)); }
+    const v = THREE.MathUtils.degToRad(this.camera.fov) / 2, h = this.hFov();
+    const d = Math.max(reach / Math.sin(h), reach + tall / Math.tan(v)) * 100 / D.endFill;
+    const cam = this.camera, sphere = { center: c };
+    await this.moveCamera(() => ({ pivot: c, q: this.level(cam.quaternion), d }), D.camMove * 1.5);
+    if (!D.endSpin || !D.endSpinTime) return;
+    const angle = D.endSpin * DEG;
+    await tween({ duration: D.endSpinTime * this.speed, target: cam, channel: "camera3", ease: sineInOut,
+      init: () => {
+        const q0 = cam.quaternion.clone(), d = ViewControls.dist(cam), c = sphere.center.clone(), qo = new THREE.Quaternion(), back = new THREE.Vector3();
+        return (t) => {
+          cam.quaternion.copy(qo.setFromAxisAngle(Ya, angle * t)).multiply(q0);
+          cam.position.copy(c).add(back.set(0, 0, 1).applyQuaternion(cam.quaternion).multiplyScalar(d));
+          cam.userData.dist = d;
+        };
+      } });
+  }
+  /** each frame, with the camera as the reader sees it: lines that turn to face the reader (a share, 0 =
+   *  a real object), and haze (lines farther than the point the camera looks at grow paler) */
+  drawHook(scene, cam) {
+    if (!this.running) return;
+    const D = this.depth(), par = scene.getObjectByName("parent");
+    if (!par) return;
+    if (D.haze > 0) {
+      const d = ViewControls.dist(cam), h = D.haze / 100;
+      this.fog ??= new THREE.Fog(0xffffff, 1, 2);
+      this.fog.color.set(P.look.background);
+      this.fog.near = d * (1 - 0.4 * h);
+      this.fog.far = this.fog.near + d * (0.3 + 6 * (1 - h) * (1 - h));
+      scene.fog = this.fog;
+    } else scene.fog = null;
+    const f = D.facing / 100;
+    if (f <= 0) return;
+    const undo = [], B = new THREE.Quaternion(), p = new THREE.Vector3();
+    for (const o of par.children) {
+      if (!o._line || !o.visible) continue;
+      const q0 = o.quaternion.clone(), x0 = o.position.clone();
+      B.copy(cam.quaternion).multiply(TURN).multiply(new THREE.Quaternion().setFromAxisAngle(Z, o._rot || 0));
+      o.quaternion.slerp(B, f);
+      if (o._pivot) o.position.add(p.copy(o._pivot).applyQuaternion(q0)).sub(p.copy(o._pivot).applyQuaternion(o.quaternion));
+      undo.push(() => { o.quaternion.copy(q0); o.position.copy(x0); });
+    }
+    return () => undo.forEach((u) => u());
   }
 }

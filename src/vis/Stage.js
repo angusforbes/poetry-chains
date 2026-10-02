@@ -7,6 +7,7 @@ import { SlugGeometry } from "../slug/SlugGeometry.js";
 import { injectSlug } from "../slug/SlugMaterial.js";
 import { P } from "../params.js";
 import { tween, wait as waitRaw } from "./tween.js";
+import { ViewControls } from "./ViewControls.js";
 
 const CAMERA_Z = -9;
 const SCALE_TEXT = 0.005;
@@ -44,41 +45,26 @@ export class Stage {
     this.dragToPan();
   }
 
-  /** The reader's own view (drag to pan, pinch or scroll to zoom), applied to the camera for each drawn
-   *  frame only: the piece's camera, the recording and scrubbing never see it. pan is in world units (so
-   *  the text stays under the finger), zoom divides the camera's distance (the letters are outlines, so
-   *  they stay sharp at any zoom). */
+  /** The reader's own view (pan, zoom, spin: see ViewControls), applied to the camera for each drawn
+   *  frame only: the piece's camera, the recording and scrubbing never see it. drawHooks run with the
+   *  camera as the reader sees it (e.g. lines that turn to face the reader) and return an undo. */
   draw() {
-    const scene = this.viewScene || this.scene, cam = this.viewCamera || this.camera, v = this.view;
-    if (!v.x && !v.y && v.zoom === 1) return this.renderer.render(scene, cam);
-    const p = cam.position.clone(), near = cam.near;
-    cam.position.x += v.x; cam.position.y += v.y; cam.position.z /= v.zoom;
-    // close in, the text would be nearer than the near plane (0.1) and cut away: bring the plane in too
-    cam.near = Math.min(near, Math.abs(cam.position.z) * 0.1); cam.updateProjectionMatrix();
+    const scene = this.viewScene || this.scene, cam = this.viewCamera || this.camera;
+    if (!this.controls.changed && !this.drawHooks.length) return this.renderer.render(scene, cam);
+    const undo = [this.controls.apply(cam)];
+    for (const h of this.drawHooks) undo.push(h(scene, cam) || (() => {}));
     this.renderer.render(scene, cam);
-    cam.position.copy(p); cam.near = near; cam.updateProjectionMatrix();
+    for (let i = undo.length - 1; i >= 0; i--) undo[i]();
   }
-  /** world units per CSS pixel on the text's plane, as the reader sees it now */
-  worldPerPx() {
-    const cam = this.viewCamera || this.camera;
-    const d = Math.abs(cam.position.z) / this.view.zoom, H = this.zoom ? this.zoom.H : this.viewH();
-    return (2 * d * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2)) / H / (window.visualViewport ? visualViewport.scale : 1);
-  }
-  get viewChanged() { const v = this.view; return !!(v.x || v.y || v.zoom !== 1); }
+  get view() { return this.controls.view; }
+  get viewChanged() { return this.controls.changed; }
+  get touching() { return this.controls.touching; }
   /** true while the piece should stand still: during a gesture, and (a setting) while the view is moved */
   get frozen() { return this.touching || (P.look.stayPaused && this.viewChanged); }
-  resetView() { Object.assign(this.view, { x: 0, y: 0, zoom: 1 }); this.viewNote(); }
-  /** zoom by f about a point on screen (CSS px from the top-left), keeping that point under the pointer */
-  zoomAt(f, cx, cy) {
-    const v = this.view, z = Math.min(60, Math.max(0.3, v.zoom * f));
-    const r = this.renderer.domElement.getBoundingClientRect();
-    const sx = cx - (r.left + r.width / 2), sy = cy - (r.top + r.height / 2);
-    const before = this.worldPerPx();
-    v.zoom = z;
-    const after = this.worldPerPx();
-    v.x += sx * (after - before); v.y += sy * (after - before);      // screen right is world -x, down is -y
-  }
-  panBy(dx, dy) { const k = this.worldPerPx(); this.view.x += dx * k; this.view.y += dy * k; }
+  resetView() { this.controls.reset(); }
+  worldPerPx() { return this.controls.worldPerPx(); }
+  zoomAt(f, cx, cy) { this.controls.zoomAt(f, cx, cy); }
+  panBy(dx, dy) { this.controls.panBy(dx, dy); }
   viewNote() {
     if (!this.note) {
       this.note = document.createElement("div");
@@ -90,61 +76,16 @@ export class Stage {
     this.note.textContent = P.look.dblReset ? "paused · double-click (or double-tap) to go back and play" : "paused while zoomed or panned (a setting)";
     this.note.style.display = show ? "block" : "none";
   }
-  /** mouse: drag pans; wheel pans, ctrl/⌘-wheel (a trackpad pinch) zooms. touch: one finger pans, two pinch.
-   *  The view you leave it at stays (it keeps playing, offset and zoomed as you left it); with a setting,
-   *  double-click / double-tap puts it back to the piece's own view. */
+  /** mouse: drag pans, shift-drag spins; wheel pans, ctrl/⌘-wheel (a trackpad pinch) zooms. touch: one
+   *  finger pans (or spins: a setting), two pan and pinch. The view you leave it at stays (it keeps
+   *  playing, offset as you left it); with a setting, double-click / double-tap puts it back. */
   dragToPan() {
-    this.view = { x: 0, y: 0, zoom: 1 };
-    this.touching = false;
-    const el = this.renderer.domElement, pts = new Map();
-    el.style.touchAction = "none";                                  // the page doesn't zoom or scroll: the piece does
-    let tap = 0, prev = null, wheelEnd = 0;
-    const on = () => P.look.drag;
-    const mid = () => { const a = [...pts.values()]; return { x: (a[0].x + a[1].x) / 2, y: (a[0].y + a[1].y) / 2, d: Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y) }; };
-    el.addEventListener("pointerdown", (e) => {
-      if (!on()) return;
-      const t = performance.now();
-      if (pts.size === 0 && t - tap < 300 && P.look.dblReset) { this.resetView(); tap = 0; return; }   // double tap
-      if (pts.size === 0) tap = t;
-      pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      el.setPointerCapture(e.pointerId);
-      this.touching = true;
-      prev = pts.size === 2 ? mid() : null;
-      el.style.cursor = "grabbing";
+    this.drawHooks = [];
+    this.controls = new ViewControls(this.renderer.domElement, {
+      enabled: () => P.look.drag, dblReset: () => P.look.dblReset, swap: () => P.look.dragSpins,
+      camera: () => this.viewCamera || this.camera, viewHeight: () => (this.zoom ? this.zoom.H : this.viewH()),
+      onChange: () => this.viewNote(),
     });
-    el.addEventListener("pointermove", (e) => {
-      const p = pts.get(e.pointerId);
-      if (!p) return;
-      if (pts.size === 1) this.panBy(e.clientX - p.x, e.clientY - p.y);
-      p.x = e.clientX; p.y = e.clientY;
-      if (pts.size === 2) {
-        const m = mid();
-        if (prev) { this.panBy(m.x - prev.x, m.y - prev.y); if (prev.d > 0) this.zoomAt(m.d / prev.d, m.x, m.y); }
-        prev = m;
-      }
-      this.viewNote();
-    });
-    const end = (e) => {
-      pts.delete(e.pointerId);
-      prev = pts.size === 2 ? mid() : null;
-      if (!pts.size) { this.touching = false; el.style.cursor = on() ? "grab" : ""; }
-    };
-    el.addEventListener("pointerup", end);
-    el.addEventListener("pointercancel", end);
-    el.addEventListener("dblclick", () => { if (P.look.dblReset) this.resetView(); });
-    el.addEventListener("wheel", (e) => {
-      if (!on()) return;
-      e.preventDefault();
-      const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1;
-      if (e.ctrlKey || e.metaKey) this.zoomAt(Math.exp(-e.deltaY * unit * 0.005), e.clientX, e.clientY);
-      else this.panBy(-e.deltaX * unit, -e.deltaY * unit);
-      // a wheel has no "up": the gesture counts as over a moment after the last event
-      this.touching = true;
-      const my = (wheelEnd = performance.now());
-      setTimeout(() => { if (wheelEnd === my && !pts.size) this.touching = false; }, 400);
-      this.viewNote();
-    }, { passive: false });
-    el.style.cursor = on() ? "grab" : "";
   }
 
   applyLook() {

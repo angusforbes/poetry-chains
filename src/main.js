@@ -34,7 +34,8 @@ const gen = {
   howe: () => corpus.howe(P.howe),
   intro: () => null,
   crossings: () => ({ corpus, toJSON: () => "crossings" }),
-  "crossings-howe": () => ({ corpus, toJSON: () => "crossings-howe" }),   // it chooses as it goes (it needs the layout)
+  "crossings-howe": () => ({ corpus, toJSON: () => "crossings-howe" }),
+  "crossings-howe-3d": () => ({ corpus, toJSON: () => "crossings-howe-3d" }),   // it chooses as it goes (it needs the layout)
 };
 const data = (m, w) => { const d = gen[m](w); trace.push(`${Math.round(now())} ${m} ${JSON.stringify(d).slice(0, 80)}`); return d; };
 const lastWord = (m, d) => {
@@ -80,6 +81,7 @@ function rebuild(s) {
   stage.clear();
   stage.camera.position.set(0, 0, -9);
   stage.camera.lookAt(0, 0, 0);
+  delete stage.camera.userData.dist;
   play(mode());
 }
 
@@ -169,6 +171,7 @@ function applyLayout() {
 const initial = (target, channel) => {
   if (channel === "opacity") target.material.opacity = 0;
   else if (channel === "camera") target.position.set(0, 0, -9);
+  else if (channel === "camera3") { target.position.set(0, 0, -9); target.lookAt(0, 0, 0); delete target.userData.dist; }   // the 3D camera
 };
 function show(t) {
   T.t = Math.max(0, Math.min(T.duration, t));
@@ -264,7 +267,9 @@ async function boot() {
   await stage.init(BASE + "fonts/OpenBaskerville.ttf");
   corpus = await loadCorpus(BASE + "corpus/dickinson.txt");
   vis = { chain: new ChainVis(stage), lines: new LinesVis(stage), colocation: new ColocationVis(stage), howe: new HoweVis(stage), intro: new IntroVis(stage), crossings: new CrossingsVis(stage),
-    "crossings-howe": new CrossingsVis(stage, { turn: () => P["crossings-howe"].turn, colour: () => P["crossings-howe"], fade: () => P["crossings-howe"] }) };
+    "crossings-howe": new CrossingsVis(stage, { turn: () => P["crossings-howe"].turn, colour: () => P["crossings-howe"], fade: () => P["crossings-howe"] }),
+    // in 3D: each line also swings out of the page; the camera faces the line being written, and at the end circles the sculpture
+    "crossings-howe-3d": new CrossingsVis(stage, { turn: () => P["crossings-howe"].turn, colour: () => P["crossings-howe"], fade: () => P["crossings-howe"], depth: () => P["crossings-3d"] }) };
   window.__pc = { THREE, stage, corpus, P, T, seek, show, setRate, now, trace, CFG, rec: () => REC, advanceTo, layout: () => LAYOUT.ready, applyLayout,
     // how far the visible text (letters at least half inked) reaches past the screen edges, in NDC (0 = fits)
     overflow: () => {
@@ -335,7 +340,9 @@ async function boot() {
     const liveCamera = (g === "look" && ["fov", "fitMargin"].includes(k)) || (g === "colocation" && k === "fitScale") || (g === "howe" && k === "zoom") || (g === "crossings" && k === "lean");
     const recolour = (g === "crossings-howe" && ["roleTone", "byAlpha", "greyAlpha", "greyest", "twoTone", "greyShare", "firstBlack", "lastBlack", "colourOn", "colourAlpha", "amount", "saturation", "lightness"].includes(k)) || (g === "look" && k === "textColor");
     if (recolour && vis["crossings-howe"]) vis["crossings-howe"].recolour();   // the lines' own colours, live
-    if (g === "look" && (k === "drag" || k === "stayPaused" || k === "dblReset")) { stage.renderer.domElement.style.cursor = P.look.drag ? "grab" : ""; if (!P.look.drag) stage.resetView(); stage.viewNote(); return; }
+    if (recolour && vis["crossings-howe-3d"]) vis["crossings-howe-3d"].recolour();
+    if (g === "crossings-3d" && (k === "facing" || k === "haze")) { T.dirty = true; return; }   // applied as it draws
+    if (g === "look" && (k === "drag" || k === "dragSpins" || k === "stayPaused" || k === "dblReset")) { stage.renderer.domElement.style.cursor = P.look.drag ? "grab" : ""; if (!P.look.drag) stage.resetView(); stage.viewNote(); return; }
     if (g === "look" && ["textColor", "background", "fov"].includes(k)) { stage.applyLook(); T.dirty = true; }
     else if (recolour) T.dirty = true;
     else if (liveCamera) T.dirty = true;
