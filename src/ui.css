@@ -137,7 +137,8 @@ body .lil-gui.lil-root {
   padding: 14px 28px 18px;
   font: 14px var(--ui-serif); color: var(--ink-2);
   font-variant-numeric: oldstyle-nums;
-  opacity: 0.12; transition: opacity 0.4s;
+  opacity: 0.4; transition: opacity 0.4s;
+  z-index: 10;                     /* above the canvas (fixed, added later), or it can't be seen or reached */
 }
 #transport:hover, body.seeking #transport, body.paused-ui #transport { opacity: 1; }
 body.hide-transport #transport { display: none; }

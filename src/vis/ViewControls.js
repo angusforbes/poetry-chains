@@ -25,7 +25,9 @@ export class ViewControls {
    *  o.onChange(): after every change. o.onTouch(bool): a gesture begins or ends. */
   constructor(el, o) {
     this.el = el; this.o = o;
-    this.view = { pan: new THREE.Vector3(), zoom: 1, spin: new THREE.Quaternion() };   // pan: in the piece camera's own frame
+    // pan: in the piece camera's own frame, in units of its distance to the pivot, so an offset stays the
+    // same share of the screen when the piece's camera moves nearer or farther (a close-up after a wide view)
+    this.view = { pan: new THREE.Vector3(), zoom: 1, spin: new THREE.Quaternion() };
     this.touching = false;
     this.listen();
   }
@@ -42,7 +44,7 @@ export class ViewControls {
     const v = this.view, p = cam.position.clone(), q = cam.quaternion.clone(), near = cam.near, dist = cam.userData.dist;
     const d = ViewControls.dist(cam);
     _piv.copy(p).add(_f.set(0, 0, -1).applyQuaternion(q).multiplyScalar(d));          // what the camera looks at
-    _piv.add(_v.copy(v.pan).applyQuaternion(q));                                     // panned
+    _piv.add(_v.copy(v.pan).multiplyScalar(d).applyQuaternion(q));                   // panned
     cam.quaternion.multiply(v.spin);                                                 // spun about the pivot
     const dz = d / v.zoom;                                                           // zoomed
     cam.position.copy(_piv).add(_v.copy(BACK).applyQuaternion(cam.quaternion).multiplyScalar(dz));
@@ -62,7 +64,16 @@ export class ViewControls {
     return (2 * d * Math.tan(THREE.MathUtils.degToRad(cam.fov) / 2)) / this.o.viewHeight() / (window.visualViewport ? visualViewport.scale : 1);
   }
   /** move the view by (ax, ay) world units along the screen's right and down: the content follows */
-  panWorld(ax, ay) { this.view.pan.add(_v.set(-ax, ay, 0).applyQuaternion(this.view.spin)); }
+  panWorld(ax, ay) { const d = ViewControls.dist(this.o.camera()); this.view.pan.add(_v.set(-ax / d, ay / d, 0).applyQuaternion(this.view.spin)); }
+  /** a copy of the view, and a view part way (t) from a copy back to the piece's own (for a gentle reset) */
+  snapshot() { const v = this.view; return { pan: v.pan.clone(), zoom: v.zoom, spin: v.spin.clone() }; }
+  towardHome(from, t) {
+    const v = this.view;
+    v.pan.copy(from.pan).multiplyScalar(1 - t);
+    v.zoom = Math.exp(Math.log(from.zoom) * (1 - t));
+    v.spin.copy(from.spin).slerp(_q.identity(), t);
+    this.o.onChange?.();
+  }
   panBy(dx, dy) { const k = this.worldPerPx(); this.panWorld(dx * k, dy * k); }
   /** zoom by f about a point on screen (CSS px), keeping that point under the pointer */
   zoomAt(f, cx, cy) {

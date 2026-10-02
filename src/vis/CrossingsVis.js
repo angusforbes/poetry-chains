@@ -201,9 +201,10 @@ export class CrossingsVis extends Vis {
           return;
         }
         trail.push(t);
-        // 3D: the camera turns to face it as it begins (and, a setting, the writing waits until it has)
-        const facing = D ? this.faceLine(nobj, D.camMove) : null;
-        await (D && D.waitCam ? Promise.all([this.wait(delay), facing]) : this.wait(delay));
+        // 3D: the camera starts to turn toward a line as it begins to be written (it may arrive midway or
+        // after); with a setting, it turns first and the writing waits until it faces the line
+        if (D && D.waitCam) await Promise.all([this.wait(delay), this.faceLine(nobj, D.camMove)]);
+        else { await this.wait(delay); if (D) this.faceLine(nobj, D.camMove); }
         placed.splice(placed.indexOf(null), 1);
         if (C.olderInk < 100) this.fadeAll(placed.filter(Boolean), C.olderInk / 100, 1000);
         await this.inkIn(nobj, placed, word.word, pace);
@@ -233,7 +234,7 @@ export class CrossingsVis extends Vis {
     growing = false;
     await watch;
     if (follow) { await this.cam.busy; await this.follow(placed.filter(Boolean), null, C.camMove * 1.5); }   // at the end: the whole poem
-    if (D) await this.overview(placed.filter(Boolean), D);         // 3D: stand back and walk round it
+    if (D) await this.overview(placed.filter(Boolean), D, obj0);   // 3D: stand back and walk round it
     await this.wait(C.hold);
     await this.fadeAll(this.parent.children, 0, 2000);
     this.parent.remove(...this.parent.children);
@@ -473,7 +474,7 @@ export class CrossingsVis extends Vis {
     }, duration, D.swing / 100);
   }
   /** the end: stand back (level) until the whole sculpture fits, then walk round it about the upright */
-  async overview(lines, D) {
+  async overview(lines, D, first) {
     this.parent.updateMatrixWorld(true);
     // every letter's corners; the walk goes round the upright through their middle, so the camera stands
     // back far enough for the widest reach from that upright (any side) and the tallest above or below it
@@ -489,13 +490,37 @@ export class CrossingsVis extends Vis {
     for (const q of pts) { reach = Math.max(reach, Math.hypot(q.x - c.x, q.z - c.z)); tall = Math.max(tall, Math.abs(q.y - c.y)); }
     const v = THREE.MathUtils.degToRad(this.camera.fov) / 2, h = this.hFov();
     const d = Math.max(reach / Math.sin(h), reach + tall / Math.tan(v)) * 100 / D.endFill;
-    const cam = this.camera, sphere = { center: c };
+    const cam = this.camera;
+    if (D.resetView) this.viewHome(D.camMove * 1.5);
     await this.moveCamera(() => ({ pivot: c, q: this.level(cam.quaternion), d }), D.camMove * 1.5);
+    await this.walkRound(c, D);
+    // and back to the first or the last line (a setting), head-on
+    const back = D.endReturn === 1 ? first : D.endReturn === 2 ? lines.at(-1) : null;
+    if (back) await this.faceLine(back, D.camMove * 1.5);
+  }
+  /** ease the reader's own view (pan, zoom, spin) back to the piece's over ms, however it was moved. It
+   *  runs on the piece's clock, so it happens at the same moment when replayed or scrubbed to, and takes
+   *  the view from wherever the reader has it then; never while recording, or while you're touching. */
+  viewHome(ms) {
+    const st = this.stage, ctl = st.controls;
+    tween({ duration: ms * this.speed, target: ctl, channel: "viewhome", silent: true,
+      init: () => {
+        let from = null, last = -1;
+        return (t) => {
+          if (st.hold || st.viewScene || st.touching || t === last || (t >= 1 && last >= 1)) { last = t; return; }
+          if (!from || t < last) from = ctl.snapshot();
+          last = t;
+          ctl.towardHome(from, t);
+        };
+      } });
+  }
+  async walkRound(c, D) {
+    const cam = this.camera;
     if (!D.endSpin || !D.endSpinTime) return;
     const angle = D.endSpin * DEG;
     await tween({ duration: D.endSpinTime * this.speed, target: cam, channel: "camera3", ease: sineInOut,
       init: () => {
-        const q0 = cam.quaternion.clone(), d = ViewControls.dist(cam), c = sphere.center.clone(), qo = new THREE.Quaternion(), back = new THREE.Vector3();
+        const q0 = cam.quaternion.clone(), d = ViewControls.dist(cam), qo = new THREE.Quaternion(), back = new THREE.Vector3();
         return (t) => {
           cam.quaternion.copy(qo.setFromAxisAngle(Ya, angle * t)).multiply(q0);
           cam.position.copy(c).add(back.set(0, 0, 1).applyQuaternion(cam.quaternion).multiplyScalar(d));

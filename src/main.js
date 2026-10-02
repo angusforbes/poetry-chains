@@ -270,6 +270,7 @@ async function boot() {
     "crossings-howe": new CrossingsVis(stage, { turn: () => P["crossings-howe"].turn, colour: () => P["crossings-howe"], fade: () => P["crossings-howe"] }),
     // in 3D: each line also swings out of the page; the camera faces the line being written, and at the end circles the sculpture
     "crossings-howe-3d": new CrossingsVis(stage, { turn: () => P["crossings-howe"].turn, colour: () => P["crossings-howe"], fade: () => P["crossings-howe"], depth: () => P["crossings-3d"] }) };
+  window.__pcVis = vis[mode()];
   window.__pc = { THREE, stage, corpus, P, T, seek, show, setRate, now, trace, CFG, rec: () => REC, advanceTo, layout: () => LAYOUT.ready, applyLayout,
     // how far the visible text (letters at least half inked) reaches past the screen edges, in NDC (0 = fits)
     overflow: () => {
