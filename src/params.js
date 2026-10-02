@@ -152,6 +152,17 @@ export const SCHEMA = {
     follow:     { v: 10,   min: 2, max: 60, step: 1, label: "bold lines per crossing" },
     bold:       { v: 0,  min: 0, max: 12, step: 0.1, label: "bold" },
   },
+  // Crossings in 3D, version 3: some lines spin in place within their plane, some words about any axis
+  "crossings-3dc": {
+    lineShare:  { v: 30,   min: 0, max: 100, step: 1, label: "lines that spin" },
+    lineMin:    { v: 4,    min: 0, max: 360, step: 1, label: "slowest line spin" },
+    lineMax:    { v: 25,   min: 0, max: 360, step: 1, label: "fastest line spin" },
+    followed:   { v: false, bool: true, label: "the black lines spin too" },
+    wordShare:  { v: 12,   min: 0, max: 100, step: 1, label: "words that spin" },
+    wordMin:    { v: 20,   min: 0, max: 720, step: 1, label: "slowest word spin" },
+    wordMax:    { v: 120,  min: 0, max: 720, step: 1, label: "fastest word spin" },
+    wordOut:    { v: true, bool: true, label: "words spin about any axis" },
+  },
   all: {
     intro:       { v: true, bool: true, label: "title card" },
     howeRepeats: { v: 6,    min: 0, max: 12, step: 1, label: "Howe scatters" },
@@ -347,6 +358,16 @@ const PANEL = {
     { label: "a burst starts within (s)", keys: [["crossings-3db", "within"]], min: 0, max: 10, step: 0.05, get: () => (P["crossings-3db"].within * sp()) / 1000, set: (v) => (P["crossings-3db"].within = (v * 1000) / sp()) },
     { label: "bold lines you follow, per crossing", keys: [["crossings-3db", "follow"]], min: 2, max: 60, step: 1, get: () => P["crossings-3db"].follow, set: (v) => (P["crossings-3db"].follow = v) },
     { label: "bold (% of the type size)", keys: [["crossings-3db", "bold"]], min: 0, max: 12, step: 0.1, get: () => P["crossings-3db"].bold, set: (v) => (P["crossings-3db"].bold = v) },
+  ] },
+  "3d version 3: spin": { of: "crossings-3dc", standalone: true, controls: [
+    { label: "lines that spin (%)", keys: [["crossings-3dc", "lineShare"]], min: 0, max: 100, step: 1, get: () => P["crossings-3dc"].lineShare, set: (v) => (P["crossings-3dc"].lineShare = v) },
+    { label: "slowest line spin (°/s)", keys: [["crossings-3dc", "lineMin"]], min: 0, max: 360, step: 1, get: () => P["crossings-3dc"].lineMin, set: (v) => (P["crossings-3dc"].lineMin = Math.min(v, P["crossings-3dc"].lineMax)) },
+    { label: "fastest line spin (°/s)", keys: [["crossings-3dc", "lineMax"]], min: 0, max: 360, step: 1, get: () => P["crossings-3dc"].lineMax, set: (v) => (P["crossings-3dc"].lineMax = Math.max(v, P["crossings-3dc"].lineMin)) },
+    { bool: ["crossings-3dc", "followed"], label: "the black lines (followed) spin too" },
+    { label: "words that spin (%)", keys: [["crossings-3dc", "wordShare"]], min: 0, max: 100, step: 1, get: () => P["crossings-3dc"].wordShare, set: (v) => (P["crossings-3dc"].wordShare = v) },
+    { label: "slowest word spin (°/s)", keys: [["crossings-3dc", "wordMin"]], min: 0, max: 720, step: 1, get: () => P["crossings-3dc"].wordMin, set: (v) => (P["crossings-3dc"].wordMin = Math.min(v, P["crossings-3dc"].wordMax)) },
+    { label: "fastest word spin (°/s)", keys: [["crossings-3dc", "wordMax"]], min: 0, max: 720, step: 1, get: () => P["crossings-3dc"].wordMax, set: (v) => (P["crossings-3dc"].wordMax = Math.max(v, P["crossings-3dc"].wordMin)) },
+    { bool: ["crossings-3dc", "wordOut"], label: "words spin about any axis (off: within the line's plane)" },
   ] },
   all: { of: "all", controls: [
     { bool: ["all", "intro"], label: "title card" },

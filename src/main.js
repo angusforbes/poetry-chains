@@ -36,7 +36,8 @@ const gen = {
   crossings: () => ({ corpus, toJSON: () => "crossings" }),
   "crossings-howe": () => ({ corpus, toJSON: () => "crossings-howe" }),
   "crossings-howe-3d": () => ({ corpus, toJSON: () => "crossings-howe-3d" }),
-  "crossings-howe-3d-verB": () => ({ corpus, toJSON: () => "crossings-howe-3d-verB" }),   // it chooses as it goes (it needs the layout)
+  "crossings-howe-3d-verB": () => ({ corpus, toJSON: () => "crossings-howe-3d-verB" }),
+  "crossings-howe-3d-ver3": () => ({ corpus, toJSON: () => "crossings-howe-3d-ver3" }),   // it chooses as it goes (it needs the layout)
 };
 const data = (m, w) => { const d = gen[m](w); trace.push(`${Math.round(now())} ${m} ${JSON.stringify(d).slice(0, 80)}`); return d; };
 const lastWord = (m, d) => {
@@ -272,7 +273,10 @@ async function boot() {
     // in 3D: each line also swings out of the page; the camera faces the line being written, and at the end circles the sculpture
     "crossings-howe-3d": new CrossingsVis(stage, { turn: () => P["crossings-howe"].turn, colour: () => P["crossings-howe"], fade: () => P["crossings-howe"], depth: () => P["crossings-3d"] }),
     // version B: at each crossing word several lines burst out in different directions; the bold one is followed
-    "crossings-howe-3d-verB": new CrossingsVis(stage, { turn: () => P["crossings-howe"].turn, colour: () => P["crossings-howe"], fade: () => P["crossings-howe"], depth: () => P["crossings-3d"], burst: () => P["crossings-3db"] }) };
+    "crossings-howe-3d-verB": new CrossingsVis(stage, { turn: () => P["crossings-howe"].turn, colour: () => P["crossings-howe"], fade: () => P["crossings-howe"], depth: () => P["crossings-3d"], burst: () => P["crossings-3db"] }),
+    // version 3: version B, and some lines spin in place within their plane, some words about any axis
+    "crossings-howe-3d-ver3": new CrossingsVis(stage, { turn: () => P["crossings-howe"].turn, colour: () => P["crossings-howe"], fade: () => P["crossings-howe"], depth: () => P["crossings-3d"], burst: () => P["crossings-3db"], spin: () => P["crossings-3dc"] }) };
+  stage.pieceTime = () => (CFG.controls ? T.t : now());          // the piece's time as drawn (spins are a function of it)
   window.__pcVis = vis[mode()];
   window.__pc = { THREE, stage, corpus, P, T, seek, show, setRate, now, trace, CFG, rec: () => REC, advanceTo, layout: () => LAYOUT.ready, applyLayout,
     // how far the visible text (letters at least half inked) reaches past the screen edges, in NDC (0 = fits)
@@ -346,6 +350,8 @@ async function boot() {
     if (recolour && vis["crossings-howe"]) vis["crossings-howe"].recolour();   // the lines' own colours, live
     if (recolour && vis["crossings-howe-3d"]) vis["crossings-howe-3d"].recolour();
     if (recolour && vis["crossings-howe-3d-verB"]) vis["crossings-howe-3d-verB"].recolour();
+    if (recolour && vis["crossings-howe-3d-ver3"]) vis["crossings-howe-3d-ver3"].recolour();
+    if (g === "crossings-3dc") { T.dirty = true; return; }       // spins: applied as it draws
     if (g === "crossings-3d" && (k === "facing" || k === "haze")) { T.dirty = true; return; }   // applied as it draws
     if (g === "look" && (k === "drag" || k === "dragSpins" || k === "stayPaused" || k === "dblReset")) { stage.renderer.domElement.style.cursor = P.look.drag ? "grab" : ""; if (!P.look.drag) stage.resetView(); stage.viewNote(); return; }
     if (g === "look" && ["textColor", "background", "fov"].includes(k)) { stage.applyLook(); T.dirty = true; }

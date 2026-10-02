@@ -33,8 +33,9 @@ export class CrossingsVis extends Vis {
   /** fade(): Crossings (Howe)'s settings for "one stays, the rest fade" (null: every new line stays) */
   /** depth(): Crossings in 3D: its settings (null: flat). See the 3D section at the end. */
   /** burst(): version B: at each crossing word, many lines burst out (one, in bold, is followed) */
-  constructor(stage, { turn = () => 0, colour = null, fade = null, depth = null, burst = null } = {}) {
-    super(stage); this.turn = turn; this.colour = colour; this.fade = fade; this.depth = depth; this.burst = burst; this.inks = [];
+  /** spin(): version 3: some lines spin in place within their plane, some words about any axis */
+  constructor(stage, { turn = () => 0, colour = null, fade = null, depth = null, burst = null, spin = null } = {}) {
+    super(stage); this.turn = turn; this.colour = colour; this.fade = fade; this.depth = depth; this.burst = burst; this.spin = spin; this.inks = [];
     if (depth) stage.drawHooks.push((scene, cam) => this.drawHook(scene, cam));
   }
 
@@ -87,6 +88,7 @@ export class CrossingsVis extends Vis {
     // 3D: each line's swing out of the page comes from its own stream (seeded by the run's seed and this
     // crossing's start), so the flat choices are exactly those of the flat piece with the same seed
     const tilt = D ? stream(seed * 7919 + Math.round(now())) : null;
+    this.spinRng = this.spin ? stream(seed * 104729 + Math.round(now()) + 1) : null;
     const follow = C.follow && !D;
     // Spacing is drawn afresh for every line and kept for the whole of it: the rows of a down list, the
     // spaces between the words of a line across. Mostly cramped (overlapping at the tight end), otherwise
@@ -115,6 +117,7 @@ export class CrossingsVis extends Vis {
     const obj0 = this.makeLine(line0, false, 0, C.firstPlain ? 1 : w0space);   // the first line: proper spacing
     if (this.colour) this.tint(obj0, rand(), rand(), "first", this.fade && this.fade().fading ? "stay" : null);
     if (B) this.embolden(obj0, B.bold);
+    if (this.spin) this.spinSetup(obj0, true);
     const w0 = line0.text.length * ADV * em;
     this.place(obj0, new THREE.Vector3(w0 / 2 + (rand() - 0.5) * halfW * 0.4, (rand() - 0.5) * halfH * 0.6, 0));
     shown.add(line0);
@@ -217,6 +220,7 @@ export class CrossingsVis extends Vis {
         if (burst) delay = (F ? F.mainPause : C.stepHold) + rand() * B.within;   // a burst pops out together with its bold line
         if (this.colour) this.tint(nobj, (from.obj._hue + 1 / 6 + rand() * 2 / 3) % 1, rand(), last ? "last" : null, F ? (fades ? "fade" : "stay") : null);   // hue 60°..300° from its parent
         if (bold) this.embolden(nobj, B.bold);
+        if (this.spin) this.spinSetup(nobj, !fades);
         const t = { line: pick.next, obj: nobj, across: !from.across, arrived: word };
         if (fades) {                                                // written, then fades away, and is gone
           await this.wait(delay);
@@ -588,9 +592,11 @@ export class CrossingsVis extends Vis {
       this.fog.far = this.fog.near + d * (0.3 + 6 * (1 - h) * (1 - h));
       scene.fog = this.fog;
     } else scene.fog = null;
+    const undo = [];
+    if (this.spin) this.applySpins(par, undo);
     const f = D.facing / 100;
-    if (f <= 0) return;
-    const undo = [], B = new THREE.Quaternion(), p = new THREE.Vector3();
+    if (f <= 0) return () => { for (let i = undo.length - 1; i >= 0; i--) undo[i](); };
+    const B = new THREE.Quaternion(), p = new THREE.Vector3();
     for (const o of par.children) {
       if (!o._line || !o.visible) continue;
       const q0 = o.quaternion.clone(), x0 = o.position.clone();
@@ -599,6 +605,56 @@ export class CrossingsVis extends Vis {
       if (o._pivot) o.position.add(p.copy(o._pivot).applyQuaternion(q0)).sub(p.copy(o._pivot).applyQuaternion(o.quaternion));
       undo.push(() => { o.quaternion.copy(q0); o.position.copy(x0); });
     }
-    return () => undo.forEach((u) => u());
+    return () => { for (let i = undo.length - 1; i >= 0; i--) undo[i](); };
+  }
+
+  /* ── spinning (version 3) ─────────────────────────────────────────────────────────────────────────
+     Some lines turn in place within their own plane, about the word where they cross (the first line
+     about its middle); some words turn in place about their own middle, about any axis (or, a setting,
+     within the line's plane), even inside a turning line. Each spin is decided when its line is made
+     (its own random stream) and drawn as a pure function of the piece's time, so playback, scrubbing
+     and the recordings never see it; the settings for speeds and shares apply as it draws. */
+  spinSetup(obj, followed) {
+    const r = this.spinRng, sign = () => (r() < 0.5 ? -1 : 1);
+    obj._spin = { t0: now(), followed, line: r(), lineSpeed: r(), lineDir: sign(), words: [] };
+    const text = obj._line.text || String(obj._line);
+    for (const m of text.matchAll(/\S+/g)) {
+      const a = new THREE.Vector3(r() * 2 - 1, r() * 2 - 1, r() * 2 - 1);
+      if (a.lengthSq() < 1e-6) a.set(0, 1, 0);
+      obj._spin.words.push({ from: m.index, to: m.index + m[0].length, pick: r(), speed: r(), dir: sign(), axis: a.normalize() });
+    }
+  }
+  applySpins(par, undo) {
+    const S = this.spin(), t = (this.stage.pieceTime ? this.stage.pieceTime() : now()), q = new THREE.Quaternion(), p = new THREE.Vector3(), c = new THREE.Vector3(), b = new THREE.Box3(), bb = new THREE.Box3();
+    const deg = (x, lo, hi) => (lo + x * (hi - lo)) * DEG;
+    for (const o of par.children) {
+      const sp = o._spin;
+      if (!sp || !o.visible || (sp.followed && !S.followed)) continue;
+      const secs = Math.max(0, t - sp.t0) / 1000;
+      // words: each about the middle of its letters, as they sit now
+      for (const w of sp.words) {
+        if (w.pick >= S.wordShare / 100) continue;
+        const ms = o.children.slice(w.from, w.to).filter((m) => m.isMesh);
+        if (!ms.length) continue;
+        b.makeEmpty();
+        for (const m of ms) { m.updateMatrix(); b.union(bb.copy(m.geometry.boundingBox).applyMatrix4(m.matrix)); }
+        b.getCenter(c);
+        q.setFromAxisAngle(S.wordOut ? w.axis : Z, w.dir * deg(w.speed, S.wordMin, S.wordMax) * secs);
+        for (const m of ms) {
+          const x0 = m.position.clone(), q0 = m.quaternion.clone();
+          m.position.sub(c).applyQuaternion(q).add(c);
+          m.quaternion.premultiply(q);
+          undo.push(() => { m.position.copy(x0); m.quaternion.copy(q0); });
+        }
+      }
+      // the line, within its own plane, about the word where it crosses
+      if (sp.line < S.lineShare / 100) {
+        if (!o._mid) { b.makeEmpty(); for (const m of o.children) if (m.isMesh) { m.updateMatrix(); b.union(bb.copy(m.geometry.boundingBox).applyMatrix4(m.matrix)); } o._mid = b.getCenter(new THREE.Vector3()); }
+        const piv = o._pivot || o._mid, q0 = o.quaternion.clone(), x0 = o.position.clone();
+        o.quaternion.multiply(q.setFromAxisAngle(Z, sp.lineDir * deg(sp.lineSpeed, S.lineMin, S.lineMax) * secs));
+        o.position.add(p.copy(piv).applyQuaternion(q0)).sub(p.copy(piv).applyQuaternion(o.quaternion));
+        undo.push(() => { o.quaternion.copy(q0); o.position.copy(x0); });
+      }
+    }
   }
 }
