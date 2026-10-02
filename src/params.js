@@ -148,7 +148,7 @@ export const SCHEMA = {
     spread:     { v: 180,  min: 0, max: 360, step: 1, label: "burst spread" },
     within:     { v: 1500, min: 0, max: 10000, step: 50, label: "a burst starts within" },
     follow:     { v: 10,   min: 2, max: 60, step: 1, label: "bold lines per crossing" },
-    bold:       { v: 5,  min: 0, max: 12, step: 0.1, label: "bold" },
+    bold:       { v: 0,  min: 0, max: 12, step: 0.1, label: "bold" },
   },
   all: {
     intro:       { v: true, bool: true, label: "title card" },
