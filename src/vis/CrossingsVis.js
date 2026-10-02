@@ -512,7 +512,11 @@ export class CrossingsVis extends Vis {
       const f = this.lineFrame(obj);
       let q = f.q.clone().multiply(new THREE.Quaternion().setFromAxisAngle(Ya, D.angle * DEG)).multiply(TURN);
       if (!D.roll) q = this.level(q);
-      return { pivot: f.centre, q, d: this.fitDist(f.w, f.h) * 100 / D.lineFill };
+      // the same size of type for every line (the letters' em is that share of the screen's height), or
+      // (a setting) near enough that the whole line fills its share of the frame
+      const v = THREE.MathUtils.degToRad(this.camera.fov) / 2;
+      const d = D.sameSize ? (this.parent.scale.x * P.look.fontSize) / (2 * Math.tan(v)) * 100 / D.textSize : this.fitDist(f.w, f.h) * 100 / D.lineFill;
+      return { pivot: f.centre, q, d };
     }, duration, D.swing / 100);
   }
   /** the end: stand back (level) until the whole sculpture fits, then walk round it about the upright */

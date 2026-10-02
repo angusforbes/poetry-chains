@@ -125,6 +125,8 @@ export const SCHEMA = {
   // Crossings in 3D (crossings-howe-3d): the lines swing out of the page; the camera faces each as it is written
   "crossings-3d": {
     tilt:       { v: 45,   min: 0, max: 90, step: 0.5, label: "swing out of the page" },
+    sameSize:   { v: true, bool: true, label: "every line's type the same size" },
+    textSize:   { v: 8,    min: 1, max: 40, step: 0.5, label: "type size (% of the screen's height)" },
     lineFill:   { v: 55,   min: 10, max: 150, step: 1, label: "the line being written fills" },
     angle:      { v: 0,    min: 0, max: 80, step: 1, label: "reading angle" },
     roll:       { v: true, bool: true, label: "camera turns upright with the line" },
@@ -318,7 +320,9 @@ const PANEL = {
   ] },
   "3d": { of: "crossings-3d", standalone: true, controls: [
     { label: "swing out of the page (± °)", keys: [["crossings-3d", "tilt"]], min: 0, max: 90, step: 0.5, get: () => P["crossings-3d"].tilt, set: (v) => (P["crossings-3d"].tilt = v) },
-    { label: "line being written fills (%)", keys: [["crossings-3d", "lineFill"]], min: 10, max: 150, step: 1, get: () => P["crossings-3d"].lineFill, set: (v) => (P["crossings-3d"].lineFill = v) },
+    { bool: ["crossings-3d", "sameSize"], label: "every line's type the same size (off: fit each line)" },
+    { label: "type size (% of the screen height)", keys: [["crossings-3d", "textSize"]], min: 1, max: 40, step: 0.5, get: () => P["crossings-3d"].textSize, set: (v) => (P["crossings-3d"].textSize = v) },
+    { label: "line being written fills (%, when fitting)", keys: [["crossings-3d", "lineFill"]], min: 10, max: 150, step: 1, get: () => P["crossings-3d"].lineFill, set: (v) => (P["crossings-3d"].lineFill = v) },
     { label: "reading angle (° off head-on)", keys: [["crossings-3d", "angle"]], min: 0, max: 80, step: 1, get: () => P["crossings-3d"].angle, set: (v) => (P["crossings-3d"].angle = v) },
     { bool: ["crossings-3d", "roll"], label: "camera turns upright with the line (off: stays level)" },
     { label: "camera turn (s)", keys: [["crossings-3d", "camMove"]], min: 0.1, max: 20, step: 0.1, get: () => (P["crossings-3d"].camMove * sp()) / 1000, set: (v) => (P["crossings-3d"].camMove = (v * 1000) / sp()) },
