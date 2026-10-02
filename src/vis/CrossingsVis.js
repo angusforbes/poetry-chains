@@ -621,8 +621,30 @@ export class CrossingsVis extends Vis {
     for (const m of text.matchAll(/\S+/g)) {
       const a = new THREE.Vector3(r() * 2 - 1, r() * 2 - 1, r() * 2 - 1);
       if (a.lengthSq() < 1e-6) a.set(0, 1, 0);
-      obj._spin.words.push({ from: m.index, to: m.index + m[0].length, pick: r(), speed: r(), dir: sign(), axis: a.normalize() });
+      obj._spin.words.push({ from: m.index, to: m.index + m[0].length, pick: r(), seed: (r() * 4294967296) >>> 0, dir: sign(), axis: a.normalize() });
     }
+  }
+  /** A word spins in bursts: rest, then a quick run up to speed, one or more whole turns, a quick but
+   *  gentle slowing to rest (so it rests upright, readable), and again. Each burst draws its own peak
+   *  speed, turns, ramps, direction and rest from the word's seed and the burst's number, so the pattern
+   *  varies and the angle at any time is a pure function of that time. */
+  wordAngle(w, secs, S) {
+    const h = (i, k) => { let x = (w.seed ^ Math.imul(i + 1, 0x9e3779b1) ^ Math.imul(k + 1, 0x85ebca6b)) >>> 0; x = Math.imul(x ^ (x >>> 16), 0x7feb352d); x = Math.imul(x ^ (x >>> 15), 0x846ca68b); return ((x ^ (x >>> 16)) >>> 0) / 4294967296; };
+    let t = secs - h(-1, 0) * S.restMax / 1000;                     // each word starts somewhere in a rest
+    for (let i = 0; i < 100000 && t > 0; i++) {
+      const vmax = (S.wordMin + h(i, 1) * (S.wordMax - S.wordMin)) * DEG;        // peak speed
+      const turns = 1 + Math.floor(h(i, 2) * S.turns);
+      const total = turns * 2 * Math.PI, rampT = (S.ramp / 1000) * (0.6 + 0.8 * h(i, 3));   // time to speed up (and again to slow)
+      const dur = total / vmax + rampT, a = Math.min(0.49, rampT / dur);
+      const rest = (S.restMin + h(i, 4) * (S.restMax - S.restMin)) / 1000;
+      if (t < dur) {
+        const u = t / dur, ramp = (x) => x / 2 - (a / (2 * Math.PI)) * Math.sin((Math.PI * x) / a);   // area under a sine ramp
+        const area = u < a ? ramp(u) : u > 1 - a ? (1 - a) - ramp(1 - u) : a / 2 + (u - a);
+        return (h(i, 5) < 0.5 ? -1 : 1) * w.dir * total * (area / (1 - a));
+      }
+      t -= dur + rest;
+    }
+    return 0;
   }
   applySpins(par, undo) {
     const S = this.spin(), t = (this.stage.pieceTime ? this.stage.pieceTime() : now()), q = new THREE.Quaternion(), p = new THREE.Vector3(), c = new THREE.Vector3(), b = new THREE.Box3(), bb = new THREE.Box3();
@@ -639,7 +661,9 @@ export class CrossingsVis extends Vis {
         b.makeEmpty();
         for (const m of ms) { m.updateMatrix(); b.union(bb.copy(m.geometry.boundingBox).applyMatrix4(m.matrix)); }
         b.getCenter(c);
-        q.setFromAxisAngle(S.wordOut ? w.axis : Z, w.dir * deg(w.speed, S.wordMin, S.wordMax) * secs);
+        const ang = this.wordAngle(w, secs, S);
+        if (!ang) continue;
+        q.setFromAxisAngle(S.wordOut ? w.axis : Z, ang);
         for (const m of ms) {
           const x0 = m.position.clone(), q0 = m.quaternion.clone();
           m.position.sub(c).applyQuaternion(q).add(c);
