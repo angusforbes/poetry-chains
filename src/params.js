@@ -140,6 +140,16 @@ export const SCHEMA = {
     facing:     { v: 0,    min: 0, max: 100, step: 1, label: "lines turn to face you" },
     haze:       { v: 30,   min: 0, max: 100, step: 1, label: "haze" },
   },
+  // Crossings in 3D, version B: at each crossing word many lines burst out; you follow one, in bold
+  "crossings-3db": {
+    crossMin:   { v: 1,    min: 1, max: 5, step: 1, label: "fewest crossing words per line" },
+    crossMax:   { v: 2,    min: 1, max: 5, step: 1, label: "most crossing words per line" },
+    lines:      { v: 5,    min: 1, max: 12, step: 1, label: "lines through each crossing word" },
+    spread:     { v: 180,  min: 0, max: 360, step: 1, label: "burst spread" },
+    within:     { v: 1500, min: 0, max: 10000, step: 50, label: "a burst starts within" },
+    follow:     { v: 10,   min: 2, max: 60, step: 1, label: "bold lines per crossing" },
+    bold:       { v: 5,  min: 0, max: 12, step: 0.1, label: "bold" },
+  },
   all: {
     intro:       { v: true, bool: true, label: "title card" },
     howeRepeats: { v: 6,    min: 0, max: 12, step: 1, label: "Howe scatters" },
@@ -324,6 +334,15 @@ const PANEL = {
       get: () => P["crossings-3d"].endReturn, set: (v) => (P["crossings-3d"].endReturn = v) },
     { label: "lines turn to face you (%)", keys: [["crossings-3d", "facing"]], min: 0, max: 100, step: 1, get: () => P["crossings-3d"].facing, set: (v) => (P["crossings-3d"].facing = v) },
     { label: "haze (%)", keys: [["crossings-3d", "haze"]], min: 0, max: 100, step: 1, get: () => P["crossings-3d"].haze, set: (v) => (P["crossings-3d"].haze = v) },
+  ] },
+  "3d version B": { of: "crossings-3db", standalone: true, controls: [
+    { label: "fewest crossing words per line", keys: [["crossings-3db", "crossMin"]], min: 1, max: 5, step: 1, get: () => P["crossings-3db"].crossMin, set: (v) => (P["crossings-3db"].crossMin = Math.min(v, P["crossings-3db"].crossMax)) },
+    { label: "most crossing words per line", keys: [["crossings-3db", "crossMax"]], min: 1, max: 5, step: 1, get: () => P["crossings-3db"].crossMax, set: (v) => (P["crossings-3db"].crossMax = Math.max(v, P["crossings-3db"].crossMin)) },
+    { label: "lines through each crossing word", keys: [["crossings-3db", "lines"]], min: 1, max: 12, step: 1, get: () => P["crossings-3db"].lines, set: (v) => (P["crossings-3db"].lines = v) },
+    { label: "burst spread within the plane (°)", keys: [["crossings-3db", "spread"]], min: 0, max: 360, step: 1, get: () => P["crossings-3db"].spread, set: (v) => (P["crossings-3db"].spread = v) },
+    { label: "a burst starts within (s)", keys: [["crossings-3db", "within"]], min: 0, max: 10, step: 0.05, get: () => (P["crossings-3db"].within * sp()) / 1000, set: (v) => (P["crossings-3db"].within = (v * 1000) / sp()) },
+    { label: "bold lines you follow, per crossing", keys: [["crossings-3db", "follow"]], min: 2, max: 60, step: 1, get: () => P["crossings-3db"].follow, set: (v) => (P["crossings-3db"].follow = v) },
+    { label: "bold (% of the type size)", keys: [["crossings-3db", "bold"]], min: 0, max: 12, step: 0.1, get: () => P["crossings-3db"].bold, set: (v) => (P["crossings-3db"].bold = v) },
   ] },
   all: { of: "all", controls: [
     { bool: ["all", "intro"], label: "title card" },

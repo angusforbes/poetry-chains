@@ -32,8 +32,9 @@ export class CrossingsVis extends Vis {
    *  Crossings (Howe) uses it: turns add up, so later lines can stand at steep angles. */
   /** fade(): Crossings (Howe)'s settings for "one stays, the rest fade" (null: every new line stays) */
   /** depth(): Crossings in 3D: its settings (null: flat). See the 3D section at the end. */
-  constructor(stage, { turn = () => 0, colour = null, fade = null, depth = null } = {}) {
-    super(stage); this.turn = turn; this.colour = colour; this.fade = fade; this.depth = depth; this.inks = [];
+  /** burst(): version B: at each crossing word, many lines burst out (one, in bold, is followed) */
+  constructor(stage, { turn = () => 0, colour = null, fade = null, depth = null, burst = null } = {}) {
+    super(stage); this.turn = turn; this.colour = colour; this.fade = fade; this.depth = depth; this.burst = burst; this.inks = [];
     if (depth) stage.drawHooks.push((scene, cam) => this.drawHook(scene, cam));
   }
 
@@ -79,6 +80,8 @@ export class CrossingsVis extends Vis {
   async start({ corpus }) {
     const C = P.crossings, em = P.look.fontSize;
     const D = this.depth ? this.depth() : null;
+    const B = this.burst ? this.burst() : null;
+    const LIMIT = B ? B.follow : C.maxLines;                       // lines that stay (version B: the bold lines you follow)
     this.running = !!D;
     this.parent = this.getParentObject();
     // 3D: each line's swing out of the page comes from its own stream (seeded by the run's seed and this
@@ -111,6 +114,7 @@ export class CrossingsVis extends Vis {
     const w0space = drawWords();                                    // drawn either way, so runs stay the same
     const obj0 = this.makeLine(line0, false, 0, C.firstPlain ? 1 : w0space);   // the first line: proper spacing
     if (this.colour) this.tint(obj0, rand(), rand(), "first", this.fade && this.fade().fading ? "stay" : null);
+    if (B) this.embolden(obj0, B.bold);
     const w0 = line0.text.length * ADV * em;
     this.place(obj0, new THREE.Vector3(w0 / 2 + (rand() - 0.5) * halfW * 0.4, (rand() - 0.5) * halfH * 0.6, 0));
     shown.add(line0);
@@ -133,7 +137,28 @@ export class CrossingsVis extends Vis {
       const births = [];
       const [lo, hi] = F ? [F.branchMin, F.branchMax] : [C.branchMin, C.branchMax];
       const count = lo + Math.floor(rand() * (hi - lo + 1));
-      for (let b = 0; b < count && (b > 0 && F || placed.length < C.maxLines); b++) {
+      // version B: 1..2 crossing words on this line; through each, several lines burst out in different
+      // directions. The first line of the first burst is bold, stays and is followed; the rest fade.
+      if (B) {
+        const n = B.crossMin + Math.floor(rand() * (B.crossMax - B.crossMin + 1));
+        for (let c = 0; c < n && placed.length < LIMIT; c++) {
+          const rowStep = drawRows();
+          const pick = this.choose(corpus, from.line, from.obj, from.across, from.arrived, { shown, used, skip, rowStep, halfW, halfH, em, centres });
+          if (!pick) break;
+          used.add(pick.word);
+          const more = shuffle([...new Set(pick.word.lines)].filter((l) => !shown.has(l) && l !== from.line && l !== pick.next)).slice(0, B.lines - 1);
+          const group = [pick.next, ...more], spin = rand();
+          group.forEach((next, k) => {
+            shown.add(next);
+            const one = { ...pick, next, rot: pick.rot + (k ? (k / group.length) * B.spread * DEG : 0) };
+            // swings spread out of the plane (golden steps, so neighbours differ), the followed line's at random
+            const swing = k ? (((spin + k * 0.618) % 1) * 2 - 1) : null;
+            if (c === 0 && k === 0) { placed.push(null); births.push({ pick: one, rowStep: drawRows(), last: placed.length === LIMIT, bold: true }); }
+            else births.push({ pick: one, rowStep: drawRows(), fades: F ? F.fadeMin + rand() * (F.fadeMax - F.fadeMin) : 8000, swing, burst: true });
+          });
+        }
+      }
+      for (let b = 0; !B && b < count && (b > 0 && F || placed.length < C.maxLines); b++) {
         const rowStep = drawRows();
         const pick = this.choose(corpus, from.line, from.obj, from.across, from.arrived, { shown, used, skip, rowStep, halfW, halfH, em, centres });
         if (!pick) break;
@@ -145,11 +170,11 @@ export class CrossingsVis extends Vis {
         }
         used.add(pick.word);
         placed.push(null);                                          // its place in the count, until it is added
-        births.push({ pick, rowStep, last: placed.length === C.maxLines });   // the line that fills the crossing
+        births.push({ pick, rowStep, last: placed.length === LIMIT });   // the line that fills the crossing
       }
       // the crossing waits for the lines that stay; fading lines go on in their own time (and are cleared
       // with everything else at the end, however far their fade has got)
-      const jobs = births.map(async ({ pick, rowStep, last, fades }) => {
+      const jobs = births.map(async ({ pick, rowStep, last, fades, bold, swing: burstSwing, burst }) => {
         const { word } = pick;
         const nobj = this.makeLine(pick.next, from.across, rowStep, drawWords());   // across → down, down → across
         nobj._rot = pick.rot;
@@ -169,7 +194,7 @@ export class CrossingsVis extends Vis {
           // 3D: the same turn within the crossed line's plane, then a swing out of it about the new line's
           // other axis (a list, running down, swings about its across axis; a line across about its up axis),
           // so the line leaves the page. Turns and swings add up from line to line, as a mobile's arms do.
-          const swing = (tilt() * 2 - 1) * D.tilt * DEG;
+          const r = tilt(), swing = (burstSwing ?? (r * 2 - 1)) * D.tilt * DEG;
           const q = from.obj.quaternion.clone().multiply(new THREE.Quaternion().setFromAxisAngle(Z, rb - ra))
             .multiply(new THREE.Quaternion().setFromAxisAngle(from.across ? Xa : Ya, swing));
           nobj.quaternion.copy(q);
@@ -189,7 +214,9 @@ export class CrossingsVis extends Vis {
           if (fades) pace = F.fadePaceMin / 100 + v * (F.fadePaceMax - F.fadePaceMin) / 100;
           else { pace = F.mainPaceMin / 100 + v * (F.mainPaceMax - F.mainPaceMin) / 100; delay = F.mainPause + rand() * F.mainSpread; }
         }
+        if (burst) delay = (F ? F.mainPause : C.stepHold) + rand() * B.within;   // a burst pops out together with its bold line
         if (this.colour) this.tint(nobj, (from.obj._hue + 1 / 6 + rand() * 2 / 3) % 1, rand(), last ? "last" : null, F ? (fades ? "fade" : "stay") : null);   // hue 60°..300° from its parent
+        if (bold) this.embolden(nobj, B.bold);
         const t = { line: pick.next, obj: nobj, across: !from.across, arrived: word };
         if (fades) {                                                // written, then fades away, and is gone
           await this.wait(delay);
@@ -226,7 +253,7 @@ export class CrossingsVis extends Vis {
     await grow(trail[0], 0);
     // every branch came to a dead end before the crossing was full: grow again from the latest line
     // that still leads somewhere new, until it is full or nothing does
-    for (let k = trail.length - 1; placed.length < C.maxLines && k >= 0; k--) {
+    for (let k = trail.length - 1; placed.length < LIMIT && k >= 0; k--) {
       const n = placed.length;
       await grow(trail[k], 0);
       if (placed.length > n) k = trail.length;
@@ -298,6 +325,21 @@ export class CrossingsVis extends Vis {
     obj._p0 = p0.clone();
     obj._f0 = p0.clone();
     obj.position.copy(p0);
+  }
+
+  /** bold, for the lines you follow (version B): the font has no bold, so each letter is drawn a few more
+   *  times, shifted right (and a touch up) by up to w % of the type size: the strokes thicken */
+  embolden(obj, w) {
+    if (!w) return;
+    const k = (P.look.fontSize * w) / 100;
+    for (const m of obj.children) if (m.isMesh) for (const [dx, dy] of [[k / 3, 0], [(2 * k) / 3, 0], [k, 0], [k / 2, k * 0.25]]) {
+      const c = new THREE.Mesh(m.geometry, m.material);
+      c.position.set(dx, dy, 0);                                   // in the letter's own (mirrored) frame, +x is to the right on the page
+      c.onBeforeRender = () => { c._raw = m.material.opacity; m.material.opacity *= obj._alpha ?? 1; };
+      c.onAfterRender = () => { m.material.opacity = c._raw; };
+      c._copy = true;
+      m.add(c);
+    }
   }
 
   /** fade a line out over ms (at tempo 1), its letters a little staggered */
