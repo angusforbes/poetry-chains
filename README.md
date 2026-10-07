@@ -14,6 +14,7 @@ Each plays one animation and stops; reload for a new one.
 | **Lines**: every line that shares a word, stacked on it | [lines](https://angusforbes.github.io/poetry-chains/lines/) | [lines/controls](https://angusforbes.github.io/poetry-chains/lines/controls/) |
 | **Collocation Nets**: a word and the words that keep its company | [colocation](https://angusforbes.github.io/poetry-chains/colocation/) | [colocation/controls](https://angusforbes.github.io/poetry-chains/colocation/controls/) |
 | **Howe**: scattered, rotated lines, after Susan Howe (5 in a row) | [howe](https://angusforbes.github.io/poetry-chains/howe/) | [howe/controls](https://angusforbes.github.io/poetry-chains/howe/controls/) |
+| **The whole piece**: every mode in the original order, looping forever | [all](https://angusforbes.github.io/poetry-chains/all/) | [all/controls](https://angusforbes.github.io/poetry-chains/all/controls/) |
 
 New in 2026, not part of the looping piece (the plain pages loop, a new crossing each time):
 
@@ -21,8 +22,9 @@ New in 2026, not part of the looping piece (the plain pages loop, a new crossing
 |---|---|---|
 | **Crossings**: Howe × Lines. Lines run across and down through a shared word, like a crossword that isn't clean | [crossings](https://angusforbes.github.io/poetry-chains/crossings/) | [crossings/controls](https://angusforbes.github.io/poetry-chains/crossings/controls/) |
 | **Crossings (Howe)**: the same, each new line turned up to ±45°; one stays (dark), the rest fade (light), and the camera follows | [crossings-howe](https://angusforbes.github.io/poetry-chains/crossings-howe/) | [crossings-howe/controls](https://angusforbes.github.io/poetry-chains/crossings-howe/controls/) |
-
-| **The whole piece**: every mode in the original order, looping forever | [all](https://angusforbes.github.io/poetry-chains/all/) | [all/controls](https://angusforbes.github.io/poetry-chains/all/controls/) |
+| **Crossings in 3D**: Crossings (Howe) with each line turned in space; the camera keeps the type the same size on screen | [crossings-howe-3d](https://angusforbes.github.io/poetry-chains/crossings-howe-3d/) | [crossings-howe-3d/controls](https://angusforbes.github.io/poetry-chains/crossings-howe-3d/controls/) |
+| **Crossings in 3D, version B** | [crossings-howe-3d-verB](https://angusforbes.github.io/poetry-chains/crossings-howe-3d-verB/) | [crossings-howe-3d-verB/controls](https://angusforbes.github.io/poetry-chains/crossings-howe-3d-verB/controls/) |
+| **Crossings in 3D, version 3**: version B, with some lines spinning in their own plane and words spinning in quick bursts | [crossings-howe-3d-ver3](https://angusforbes.github.io/poetry-chains/crossings-howe-3d-ver3/) | [crossings-howe-3d-ver3/controls](https://angusforbes.github.io/poetry-chains/crossings-howe-3d-ver3/controls/) |
 
 The [root page](https://angusforbes.github.io/poetry-chains/) is the whole piece with controls
 (`#chain`, `#lines`, `#colocation`, `#howe`, `#intro` pick one).
